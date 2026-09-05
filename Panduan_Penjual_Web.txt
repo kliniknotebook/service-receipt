@@ -34,30 +34,46 @@ CARA JUAL
     ber-Docker (CasaOS / VPS / mini PC). Anda tidak ada
     biaya bulanan.
 
-  Mode 2 — SaaS langganan (bulanan):
-    Anda yang hosting (Railway / Render / VPS), pembeli hanya
-    buka link.  PERLU penyesuaian dulu menjadi multi-tenant
-    (tiap toko punya akun + data sendiri).
+  Mode 2 — SaaS langganan (bulanan): SUDAH TERBUILT (multi-tenant)
+    Satu server, banyak toko. Tiap toko daftar sendiri dan data
+    mereka TERPISAH satu sama lain.
+    - Toko daftar di:  /daftar   (masa trial 3 hari, bisa diubah)
+    - Toko pakai:       /        (login dengan akun mereka)
+    - Pelanggan cek:    /track.html?u=<username-toko>
+    - Anda kelola:      /admin   (panel penjual)
+
+  PANEL ADMIN ANDA (/admin, login admin)
+    1. Lihat semua toko + status (Trial / Aktif / Habis / Nonaktif)
+    2. Konfirmasi pembayaran 1 klik → toko otomatis aktif +30 hari
+    3. Perpanjang manual / nonaktifkan / aktifkan toko
+    4. Buat akun toko manual (tanpa menunggu daftar sendiri)
+    5. Atur harga (Rp/bulan), lama trial, no. rekening tujuan transfer
+
+  ALUR TRIAL & BILLING (otomatis)
+    - Toko daftar → TRIAL 3 hari, fitur penuh.
+    - Masa habis → otomatis terkunci (super admin akses data tetap).
+    - Toko upload bukti transfer dari halaman bayar (muncul otomatis
+      saat habis) → Anda konfirmasi di /admin → aktif 30 hari.
+    - Kalau sudah aktif, banner di aplikasi menampilkan sisa hari.
 
 SARAN HARGA (menyesuaikan pasar EXE Anda)
   - Mode paket  : sesuaikan dengan harga EXE (jual per instalasi)
-  - Mode SaaS   : Rp 25.000–75.000/bulan per toko (contoh)
-
-CARA INSTALL CEPAT (untuk pembeli)
-  1. Kirim folder/ZIP ke server (mis. /opt/tandaterima)
-  2. Di server: cd /opt/tandaterima
-  3. chmod +x install.sh
-  4. sudo ./install.sh
-  5. Selesai — buka http://IP-server:3000
+  - Mode SaaS   : default sistem Rp 50.000/bulan per toko
+                  (bisa diubah kapan saja di /admin)
 
 BATASAN PAKET SAAT INI
-  - Satu database untuk SATU toko (bukan multi-tenant).
-  - Mode SaaS perlu kerja tambahan sebelum dijual sebagai
-    layanan massal.
+  - Pembayaran = TRANSFER + KONFIRMASI manual oleh penjual.
+    (Integrasi Midtrans/QRIS otomatis bisa ditambahkan kemudian,
+    butuh akun merchant resmi).
+  - Versi ini multi-tenant (banyak toko di 1 server).
 
 CATATAN PENTING
-  - Ganti password admin setelah install.
-  - Backup berkala: salin folder data/ (receipts.db + uploads).
-  - Data pembeli tidak pernah keluar dari server mereka
-    (tidak terkait akun penjual).
+  - Ganti password admin panel setelah install (via env
+    ADMIN_USERNAME / ADMIN_PASSWORD, atau default admin/admin123
+    — SEBAIKNYA ganti saat pertama deploy).
+  - Backup berkala: salin folder data/ SELURUHNYA
+    (master.db + tenants/ = data semua toko).
+  - Akses yang sudah ada (versi lama satu-toko) otomatis diimpor
+    menjadi toko pertama saat server pertama kali dijalankan
+    dengan versi baru. Username/password tetap sama.
 =====================================================

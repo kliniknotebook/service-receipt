@@ -159,7 +159,8 @@
       btn.style.display = 'none';
       spinner.style.display = 'block';
       try {
-        const res = await fetch(`${API}/public/track?no=${encodeURIComponent(no)}&hp=${encodeURIComponent(hp)}`);
+        const u = (new URLSearchParams(location.search)).get('u') || '';
+        const res = await fetch(`${API}/public/track?u=${encodeURIComponent(u)}&no=${encodeURIComponent(no)}&hp=${encodeURIComponent(hp)}`);
         const data = await res.json();
         if (!res.ok) {
           err.textContent = data.error || 'Terjadi kesalahan. Coba lagi.';
@@ -185,7 +186,7 @@
       doTrack(no, hp);
     });
 
-    // Isi otomatis dari ?no=...&hp=...
+    // Isi otomatis dari ?u=...&no=...&hp=...
     (function prefill() {
       const p = new URLSearchParams(location.search);
       const no = p.get('no');
@@ -197,8 +198,9 @@
       }
     })();
 
-    // Info toko
-    fetch(`${API}/public/shopinfo`).then(r => r.json()).then(s => {
+    // Info toko (per toko)
+    const u = (new URLSearchParams(location.search)).get('u') || '';
+    fetch(`${API}/public/shopinfo?u=${encodeURIComponent(u)}`).then(r => r.json()).then(s => {
       document.getElementById('hdr-name').textContent = s.shop_name || 'Cek Status Service';
       document.getElementById('hdr-sub').textContent = (s.shop_address ? s.shop_address + ' · ' : '') + 'Masukkan nomor tanda terima untuk melihat status perbaikan';
       const logo = document.getElementById('hdr-logo');

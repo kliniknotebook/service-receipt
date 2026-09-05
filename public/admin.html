@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Panel Admin - Service Receipt</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔧</text></svg>">
+  <style>
+    .admin-nav { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .admin-links { display: flex; gap: 10px; }
+    .admin-links a { color: #fff; opacity: .9; text-decoration: none; font-size: .9rem; }
+    .admin-links a:hover { opacity: 1; }
+    .stat-value.small { font-size: 1.6rem; }
+    .badge-pill { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: .78rem; font-weight: 700; color: #fff; }
+    .trial-badge { background: #f59e0b; }
+    .active-badge { background: #10b981; }
+    .expired-badge { background: #ef4444; }
+    .suspended-badge { background: #6b7280; }
+    .tab-bar { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+    .tab { padding: 8px 14px; border-radius: 8px; border: 1px solid #cbd5e1; background: #fff; cursor: pointer; font-weight: 600; font-size: .9rem; color: #475569; }
+    .tab.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+    .proof-link { font-size: .82rem; }
+    .inline-flex { display: flex; gap: 6px; flex-wrap: wrap; }
+    .muted { color: #64748b; font-size: .82rem; }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand">🛠️ Panel Admin</div>
+    <div class="admin-links">
+      <a href="/" style="display:none" id="a-shop">Ke Aplikasi Toko</a>
+      <a href="#" id="btn-admin-logout" style="display:none">Keluar</a>
+    </div>
+  </nav>
+
+  <!-- Login Admin -->
+  <div class="login-overlay" id="admin-login" style="display:flex">
+    <div class="login-card">
+      <div class="login-logo">🛠️</div>
+      <h2>Login Admin</h2>
+      <p class="login-sub">Panel ini khusus pemilik platform</p>
+      <form id="admin-login-form">
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" id="al-user" placeholder="Username admin">
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="al-pass" placeholder="Password admin">
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Masuk</button>
+      </form>
+      <p id="al-error" class="login-error"></p>
+    </div>
+  </div>
+
+  <main class="container">
+    <div id="admin-app" style="display:none">
+      <div class="section-header" style="margin-bottom:18px">
+        <h2>Dashboard Penjual</h2>
+      </div>
+      <div class="stats-grid" id="admin-stats"></div>
+
+      <div class="tab-bar">
+        <button class="tab active" data-tab="payments" onclick="switchTab('payments')">💰 Pembayaran Menunggu</button>
+        <button class="tab" data-tab="tenants" onclick="switchTab('tenants')">🏪 Toko</button>
+        <button class="tab" data-tab="settings" onclick="switchTab('settings')">⚙️ Pengaturan</button>
+        <button class="tab" data-tab="create" onclick="switchTab('create')">➕ Buat Toko Manual</button>
+      </div>
+
+      <!-- Payments -->
+      <div class="tab-panel active" id="tab-payments">
+        <h3>Menunggu Konfirmasi</h3>
+        <div class="table-wrapper">
+          <table id="pay-table">
+            <thead>
+              <tr><th>Tanggal</th><th>Toko</th><th>Catatan</th><th>Jumlah</th><th>Bukti</th><th>Aksi</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <h3 style="margin-top:24px">Riwayat Pembayaran</h3>
+        <div class="table-wrapper">
+          <table id="pay-history">
+            <thead>
+              <tr><th>Tanggal</th><th>Toko</th><th>Jumlah</th><th>Status</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tenants -->
+      <div class="tab-panel" id="tab-tenants">
+        <div class="table-wrapper">
+          <table id="ten-table">
+            <thead>
+              <tr><th>Toko</th><th>Username</th><th>HP</th><th>Status</th><th>Trial Sampai</th><th>Aktif Sampai</th><th>Aksi</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Settings -->
+      <div class="tab-panel" id="tab-settings">
+        <form id="admin-settings-form" class="form-card">
+          <div class="form-row two">
+            <div class="form-group">
+              <label>Harga Langganan (Rp/bulan)</label>
+              <input type="number" id="set-price" min="0">
+            </div>
+            <div class="form-group">
+              <label>Masa Trial (hari)</label>
+              <input type="number" id="set-trial_days" min="0">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Nama Bank</label>
+            <input type="text" id="set-bank_name">
+          </div>
+          <div class="form-group">
+            <label>No. Rekening</label>
+            <input type="text" id="set-bank_account">
+          </div>
+          <div class="form-group">
+            <label>Atas Nama (Pemilik Rekening)</label>
+            <input type="text" id="set-bank_holder">
+          </div>
+          <button type="submit" class="btn btn-primary">Simpan Pengaturan</button>
+        </form>
+      </div>
+
+      <!-- Create manual tenant -->
+      <div class="tab-panel" id="tab-create">
+        <form id="create-form" class="form-card">
+          <div class="form-group">
+            <label>Nama Toko *</label>
+            <input type="text" id="c-name" required>
+          </div>
+          <div class="form-group">
+            <label>Username *</label>
+            <input type="text" id="c-user" required pattern="[a-z0-9._-]{3,20}">
+          </div>
+          <div class="form-group">
+            <label>Password *</label>
+            <input type="text" id="c-pass" required minlength="6">
+          </div>
+          <div class="form-group">
+            <label>No. HP</label>
+            <input type="text" id="c-phone">
+          </div>
+          <button type="submit" class="btn btn-primary">Buat Toko (langsung aktif 30 hari)</button>
+          <p id="c-msg" class="login-error"></p>
+        </form>
+      </div>
+    </div>
+  </main>
+
+  <script src="admin.js"></script>
+</body>
+</html>

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Daftar Toko - Service Receipt</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔧</text></svg>">
+  <style>
+    .reg-wrap { max-width: 460px; margin: 48px auto; padding: 0 16px; }
+    .reg-card { background: #fff; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,.1); padding: 32px 28px; }
+    .reg-logo { font-size: 2.4rem; text-align: center; }
+    .reg-card h2 { margin: 8px 0 4px; text-align: center; }
+    .reg-sub { text-align: center; color: #64748b; font-size: .9rem; margin: 0 0 20px; }
+    .trial-note { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; border-radius: 10px; padding: 12px 14px; font-size: .87rem; margin-bottom: 18px; }
+    .trial-note b { font-size: 1rem; }
+    .login-return { text-align: center; margin-top: 16px; font-size: .9rem; color: #64748b; }
+  </style>
+</head>
+<body>
+  <div class="reg-wrap">
+    <div class="reg-card">
+      <div class="reg-logo">🔧</div>
+      <h2>Daftar Toko Baru</h2>
+      <p class="reg-sub">Buat akun toko, langsung bisa dipakai</p>
+      <div id="trial-note" class="trial-note">... hari gratis — tanpa kartu, tanpa biaya.</div>
+
+      <form id="reg-form">
+        <div class="form-group">
+          <label>Nama Toko *</label>
+          <input type="text" id="r-name" placeholder="cth: Bengkel Service Jaya" required>
+        </div>
+        <div class="form-group">
+          <label>Username (ID login) *</label>
+          <input type="text" id="r-user" placeholder="huruf kecil tanpa spasi (cth: bengkeljaya)" required pattern="[a-z0-9._-]{3,20}">
+          <small class="form-hint">3-20 karakter: huruf kecil, angka, titik, garis bawah/minus.</small>
+        </div>
+        <div class="form-group">
+          <label>Password *</label>
+          <input type="password" id="r-pass" placeholder="minimal 6 karakter" required minlength="6">
+        </div>
+        <div class="form-group">
+          <label>Ulangi Password *</label>
+          <input type="password" id="r-pass2" placeholder="ketik ulang password" required>
+        </div>
+        <div class="form-group">
+          <label>No. HP Toko (opsional)</label>
+          <input type="text" id="r-phone" placeholder="cth: 081234567890">
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" id="r-submit">Buat Akun & Daftar</button>
+        <p id="r-msg" class="login-error"></p>
+      </form>
+
+      <div id="r-success" style="display:none;text-align:center">
+        <div style="font-size:2.6rem">🎉</div>
+        <h3 style="margin:8px 0 4px">Akun Toko Berhasil Dibuat!</h3>
+        <p id="r-success-text" style="color:#64748b;margin:0 0 16px"></p>
+        <a href="/" class="btn btn-primary btn-block">Masuk ke Toko Saya</a>
+      </div>
+
+      <p class="login-return">Sudah punya akun? <a href="/">Masuk</a></p>
+    </div>
+  </div>
+
+  <script>
+    const API = '/api';
+
+    fetch(`${API}/public/pricing`).then(r => r.json()).then(p => {
+      document.getElementById('trial-note').textContent =
+        `🎁 Gratis ${p.trial_days || 3} hari coba. Setelah itu Rp ${Number(p.price || 0).toLocaleString('id-ID')}/bulan.`;
+    }).catch(() => {});
+
+    document.getElementById('reg-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = document.getElementById('r-msg');
+      msg.textContent = '';
+      const pass = document.getElementById('r-pass').value;
+      const pass2 = document.getElementById('r-pass2').value;
+      if (pass !== pass2) { msg.textContent = 'Konfirmasi password tidak cocok'; return; }
+      try {
+        const res = await fetch(`${API}/public/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            shop_name: document.getElementById('r-name').value.trim(),
+            username: document.getElementById('r-user').value.trim(),
+            password: pass,
+            phone: document.getElementById('r-phone').value.trim()
+          })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) { msg.textContent = data.error || 'Gagal mendaftar'; return; }
+        document.getElementById('r-success-text').textContent = data.message || 'Anda sudah bisa langsung masuk.';
+        document.getElementById('reg-form').style.display = 'none';
+        document.getElementById('r-success').style.display = 'block';
+      } catch (err) {
+        msg.textContent = 'Terjadi kesalahan. Coba lagi.';
+      }
+    });
+  </script>
+</body>
+</html>

@@ -10,7 +10,23 @@ window.fetch = function (input, init) {
   if (token) {
     init.headers = Object.assign({}, init.headers, { 'Authorization': 'Bearer ' + token });
   }
-  return originalFetch.call(this, input, init);
+  const p = originalFetch.call(this, input, init);
+  if (token) {
+    p.then(res => {
+      if (res.status === 401 && String(input).indexOf('/auth/login') < 0) {
+        setToken(null);
+        showLogin();
+      }
+      if (res.status === 403) {
+        res.clone().json().then(j => {
+          if (j && (j.code === 'SUBSCRIPTION_EXPIRED' || j.code === 'SUSPENDED')) {
+            loadSubscription(true);
+          }
+        }).catch(() => {});
+      }
+    });
+  }
+  return p;
 };
 
 // Auth helpers
@@ -330,7 +346,8 @@ function waPhone(p) {
 async function shareStatusLink(id) {
   try {
     const r = await fetch(`${API}/receipts/${id}`).then(x => x.json());
-    const url = `${location.origin}/track.html?no=${encodeURIComponent(r.receipt_number)}&hp=${encodeURIComponent(r.customer_phone || '')}`;
+    const u = encodeURIComponent(localStorage.getItem('shop_user') || '');
+    const url = `${location.origin}/track.html?u=${u}&no=${encodeURIComponent(r.receipt_number)}&hp=${encodeURIComponent(r.customer_phone || '')}`;
     const wa = waPhone(r.customer_phone);
     if (wa) {
       const msg = `🔧 *Status Service - ${r.receipt_number}*\n\nPerangkat: ${[r.device_type, r.device_brand, r.device_model].filter(Boolean).join(' ')}\n\nCek status perbaikan Anda di sini:\n${url}`;
@@ -670,7 +687,8 @@ async function loadSettings() {
     document.getElementById('set-shop_address').value = settings.shop_address || '';
     document.getElementById('set-shop_phone').value = settings.shop_phone || '';
     document.getElementById('set-shop_footer').value = settings.shop_footer || '';
-    document.getElementById('set-username').value = settings.admin_username || '';
+    const ul = document.getElementById('set-username-label');
+    if (ul) ul.textContent = localStorage.getItem('shop_user') || '-';
     updateLogoPreview();
   } catch (err) {
     showToast('Gagal memuat pengaturan', 'error');
@@ -775,8 +793,11 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
       return;
     }
     setToken(data.token);
+    if (data.username) localStorage.setItem('shop_user', data.username);
+    if (data.shopName) document.getElementById('nav-brand').innerHTML = '🔧 ' + data.shopName;
     hideLogin();
     showApp();
+    if (data.subscription) renderSubBanner(data.subscription);
     loadDashboard();
     showToast('Berhasil masuk, selamat datang ' + (data.username || ''));
   } catch (err) {
@@ -788,44 +809,154 @@ document.getElementById('btn-logout').addEventListener('click', (e) => {
   e.preventDefault();
   fetch(`${API}/auth/logout`, { method: 'POST' }).catch(() => {});
   setToken(null);
+  localStorage.removeItem('shop_user');
   document.getElementById('btn-logout').style.display = 'none';
+  document.getElementById('sub-banner').style.display = 'none';
+  document.getElementById('sub-overlay').style.display = 'none';
   showLogin();
+});
+
+// ============ SUBSCRIPTION / BILLING ============
+function fmtDate(s) {
+  if (!s) return '-';
+  const d = new Date(s.replace(' ', 'T'));
+  return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+}
+
+function daysLeft(endIso) {
+  const d = new Date(endIso.replace(' ', 'T'));
+  return Math.ceil((d.getTime() - Date.now()) / 86400000);
+}
+
+function renderSubBanner(sub) {
+  const el = document.getElementById('sub-banner');
+  if (!sub) { el.style.display = 'none'; return; }
+  let html = '', cls = 'sub-banner';
+  const price = 'Rp ' + Number(sub.price || 0).toLocaleString('id-ID');
+  if (sub.effective_status === 'trial') {
+    const dl = daysLeft(sub.trial_end);
+    cls += ' trial';
+    html = `🎁 <b>Masa coba gratis:</b> sisa <b>${dl}</b> hari (sampai ${fmtDate(sub.trial_end)}). Setelah itu ${price}/bulan untuk lanjut pakai.`;
+  } else if (sub.effective_status === 'active') {
+    const dl = daysLeft(sub.sub_end);
+    cls += ' active';
+    html = `✅ <b>Langganan aktif</b> sampai ${fmtDate(sub.sub_end)} (sisa ${dl} hari).`;
+  } else if (sub.effective_status === 'expired') {
+    cls += ' danger';
+    html = `⚠️ <b>Masa langganan habis.</b> Data terkunci sampai diperpanjang (${price}/bulan).`;
+  } else if (sub.effective_status === 'suspended') {
+    cls += ' danger';
+    html = `⛔ <b>Akun dinonaktifkan.</b> Hubungi admin untuk info lebih lanjut.`;
+  }
+  el.className = cls;
+  el.innerHTML = html + ` <a href="#" onclick="openSubOverlay(); return false;" class="sub-btn">Bayar / Detail</a>`;
+  el.style.display = 'block';
+}
+
+async function loadSubscription(forceOpen) {
+  try {
+    const res = await fetch(`${API}/auth/check`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.subscription) renderSubBanner(data.subscription);
+    if (data.subscription && data.subscription.effective_status === 'expired') {
+      openSubOverlay();
+    } else if (forceOpen) {
+      openSubOverlay();
+    }
+  } catch (e) {}
+}
+
+function openSubOverlay() {
+  document.getElementById('sub-overlay').style.display = 'flex';
+  document.getElementById('sub-form').reset();
+  document.getElementById('sub-msg').textContent = '';
+  fetch(`${API}/subscription`).then(r => r.json()).then(s => {
+    if (!s) return;
+    const price = 'Rp ' + Number(s.price || 0).toLocaleString('id-ID');
+    const bank = document.getElementById('sub-bank');
+    const bankHtml = s.bank_name || s.bank_account
+      ? `<div class="sub-bank-row"><b>${s.bank_name || ''}</b> · ${s.bank_account || ''} a.n. ${s.bank_holder || ''}</div>`
+      : '';
+    document.getElementById('sub-desc').innerHTML = `Perpanjang langganan <b>${price}</b>/bulan.` +
+      (s.effective_status === 'trial'
+        ? ` Masa coba Anda berakhir ${fmtDate(s.trial_end)}.`
+        : s.effective_status === 'expired'
+          ? ' Masa langganan Anda habis.'
+          : s.effective_status === 'suspended'
+            ? ' Akun Anda dinonaktifkan admin.'
+            : '');
+    if (s.effective_status === 'suspended') {
+      document.getElementById('sub-form').style.display = 'none';
+      bank.style.display = 'none';
+    } else {
+      document.getElementById('sub-form').style.display = '';
+      bank.style.display = bankHtml ? '' : 'none';
+      bank.innerHTML = bankHtml;
+    }
+  }).catch(() => {});
+}
+
+function closeSubOverlay() {
+  document.getElementById('sub-overlay').style.display = 'none';
+}
+
+document.getElementById('sub-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const msg = document.getElementById('sub-msg');
+  msg.textContent = '';
+  const file = document.getElementById('sub-proof').files[0];
+  if (!file) { msg.textContent = 'Upload bukti transfer dulu (PNG/JPG)'; return; }
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try {
+      const res = await fetch(`${API}/subscription/pay`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note: document.getElementById('sub-note').value, proof: reader.result })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { msg.textContent = data.error || 'Gagal mengirim bukti'; return; }
+      msg.style.color = '#16a34a';
+      msg.textContent = 'Bukti terkirim! Menunggu konfirmasi admin (maks. 1x24 jam).';
+      document.getElementById('sub-form').reset();
+      setTimeout(closeSubOverlay, 1500);
+    } catch (err) {
+      msg.textContent = 'Terjadi kesalahan. Coba lagi.';
+    }
+  };
+  reader.readAsDataURL(file);
 });
 
 document.getElementById('password-form').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const username = document.getElementById('set-username').value.trim();
+  const current = document.getElementById('set-current').value;
   const p1 = document.getElementById('set-password').value;
   const p2 = document.getElementById('set-password-confirm').value;
 
-  const payload = {};
-  if (username) payload.admin_username = username;
-
-  if (p1 || p2) {
-    if (p1 !== p2) {
-      showToast('Konfirmasi password tidak cocok', 'error');
-      return;
-    }
-    payload.admin_password = p1;
+  if (!current || !p1) {
+    showToast('Isi password lama dan baru', 'error');
+    return;
   }
-
-  if (!Object.keys(payload).length) {
-    showToast('Tidak ada perubahan', 'error');
+  if (p1 !== p2) {
+    showToast('Konfirmasi password tidak cocok', 'error');
     return;
   }
 
   try {
-    const res = await fetch(`${API}/settings`, {
+    const res = await fetch(`${API}/auth/password`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ current, password: p1 })
     });
-    if (!res.ok) throw new Error();
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Gagal');
+    document.getElementById('set-current').value = '';
     document.getElementById('set-password').value = '';
     document.getElementById('set-password-confirm').value = '';
-    showToast('Kredensial berhasil disimpan');
+    showToast('Password berhasil diganti');
   } catch (err) {
-    showToast('Gagal menyimpan kredensial', 'error');
+    showToast(err.message || 'Gagal mengganti password', 'error');
   }
 });
 
@@ -922,9 +1053,18 @@ async function init() {
   try {
     const res = await fetch(`${API}/auth/check`);
     if (res.ok) {
+      const data = await res.json();
+      if (data.shopName) document.getElementById('nav-brand').innerHTML = '🔧 ' + data.shopName;
+      localStorage.setItem('shop_user', data.username || '');
+      if (data.subscription) renderSubBanner(data.subscription);
       showApp();
       hideLogin();
-      loadDashboard();
+      if (data.subscription && (data.subscription.effective_status === 'expired' || data.subscription.effective_status === 'suspended')) {
+        loadDashboard();
+        openSubOverlay();
+      } else {
+        loadDashboard();
+      }
     } else {
       setToken(null);
       showLogin();

@@ -9,7 +9,7 @@
 </head>
 <body>
   <nav class="navbar">
-    <div class="nav-brand">🔧 Service Receipt</div>
+    <div class="nav-brand" id="nav-brand">🔧 Service Receipt</div>
     <div class="nav-links">
       <a href="#" class="nav-link active" data-page="dashboard">Dashboard</a>
       <a href="#" class="nav-link" data-page="receipts">Tanda Terima</a>
@@ -18,6 +18,8 @@
       <a href="#" class="nav-link logged-in" id="btn-logout" style="display:none">Keluar</a>
     </div>
   </nav>
+
+  <div id="sub-banner" class="sub-banner" style="display:none"></div>
 
   <!-- Login Overlay -->
   <div class="login-overlay" id="login-overlay">
@@ -37,6 +39,30 @@
         <button type="submit" class="btn btn-primary btn-block">Masuk</button>
       </form>
       <p id="login-error" class="login-error"></p>
+      <p class="login-sub register-link">Belum punya akun? <a href="/daftar">Daftar toko gratis</a></p>
+    </div>
+  </div>
+
+  <!-- Subscription Overlay -->
+  <div class="login-overlay" id="sub-overlay" style="display:none">
+    <div class="login-card" style="max-height:92vh;overflow:auto">
+      <div class="login-logo">🚧</div>
+      <h2 id="sub-title">Masa Langganan Habis</h2>
+      <p id="sub-desc" class="login-sub"></p>
+      <div id="sub-bank" class="sub-bank"></div>
+      <form id="sub-form">
+        <div class="form-group">
+          <label>Catatan (opsional)</label>
+          <input type="text" id="sub-note" placeholder="cth: Pembayaran bulan berikutnya">
+        </div>
+        <div class="form-group">
+          <label>Upload Bukti Transfer</label>
+          <input type="file" id="sub-proof" accept="image/png,image/jpeg,image/gif,image/webp">
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" id="sub-submit">Kirim Bukti Pembayaran</button>
+      </form>
+      <p id="sub-msg" class="login-error"></p>
+      <p class="login-sub" style="margin-top:12px;font-size:.85rem">Bukti diproses maks. 1x24 jam. Menunggu lebih lama? Hubungi admin.</p>
     </div>
   </div>
 
@@ -176,18 +202,19 @@
       <h2 style="margin-top:32px">Keamanan</h2>
       <form id="password-form" class="form-card">
         <div class="form-group">
-          <label>Username</label>
-          <input type="text" id="set-username" autocomplete="username">
+          <label>Password Lama</label>
+          <input type="password" id="set-current" autocomplete="current-password">
         </div>
         <div class="form-group">
           <label>Password Baru</label>
           <input type="password" id="set-password" autocomplete="new-password">
         </div>
         <div class="form-group">
-          <label>Konfirmasi Password</label>
+          <label>Konfirmasi Password Baru</label>
           <input type="password" id="set-password-confirm" autocomplete="new-password">
         </div>
-        <button type="submit" class="btn btn-primary">Simpan Kredensial</button>
+        <button type="submit" class="btn btn-primary">Ganti Password</button>
+        <small class="form-hint" style="display:block;margin-top:10px">ID login toko Anda: <b id="set-username-label"></b></small>
       </form>
     </section>
   </main>
