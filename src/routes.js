@@ -1,7 +1,11 @@
 const express = require('express');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const router = express.Router();
 const { getDB, saveDB } = require('./database');
+
+const UPLOAD_DIR = path.join(__dirname, '..', 'data', 'uploads');
 
 const tokens = new Map();
 
@@ -207,6 +211,38 @@ router.put('/settings', (req, res) => {
   res.json({ success: true });
 });
 
+// Upload logo (base64 data URI)
+router.post('/settings/logo', (req, res) => {
+  const data = req.body.data || '';
+  const m = data.match(/^data:(image\/(png|jpe?g|gif|webp));base64,(.+)$/i);
+  if (!m) return res.status(400).json({ error: 'File harus gambar (PNG/JPG)' });
+  const ext = m[2] === 'jpeg' ? 'jpg' : m[2];
+  const buffer = Buffer.from(m[3], 'base64');
+  const MAX = 2 * 1024 * 1024;
+  if (buffer.length > MAX) return res.status(400).json({ error: 'Ukuran logo maksimal 2MB' });
+
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+  fs.writeFileSync(path.join(UPLOAD_DIR, 'logo.' + ext), buffer);
+
+  const url = `/uploads/logo.${ext}`;
+  runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['shop_logo', url]);
+
+  const rows = queryAll('SELECT * FROM settings');
+  const obj = {};
+  rows.forEach(r => { if (r.key !== 'admin_password') obj[r.key] = r.value; });
+  res.json(obj);
+});
+
+// Hapus logo
+router.delete('/settings/logo', (req, res) => {
+  const current = getSetting('shop_logo');
+  if (current) {
+    try { fs.unlinkSync(path.join(UPLOAD_DIR, path.basename(current))); } catch (e) {}
+    runQuery("DELETE FROM settings WHERE key = 'shop_logo'");
+  }
+  res.json({ success: true });
+});
+
 // Stats
 router.get('/stats', (req, res) => {
   const total = queryOne('SELECT COUNT(*) as count FROM receipts').count;
@@ -272,6 +308,13 @@ router.get('/report', (req, res) => {
   res.json({ summary, detail });
 });
 
+function logoFilePath() {
+  const current = getSetting('shop_logo');
+  if (!current) return null;
+  const full = path.join(UPLOAD_DIR, path.basename(current));
+  return fs.existsSync(full) ? full : null;
+}
+
 // Export PDF (A4)
 router.get('/receipts/:id/export', (req, res) => {
   const r = queryOne('SELECT * FROM receipts WHERE id = ?', [parseInt(req.params.id)]);
@@ -282,7 +325,7 @@ router.get('/receipts/:id/export', (req, res) => {
   rows.forEach(s => settings[s.key] = s.value);
 
   const { buildA4 } = require('./pdf');
-  const doc = buildA4(settings, r);
+  const doc = buildA4(settings, r, logoFilePath());
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="${r.receipt_number}.pdf"`);
   doc.pipe(res);
@@ -299,7 +342,7 @@ router.get('/receipts/:id/export/half', (req, res) => {
   rows.forEach(s => settings[s.key] = s.value);
 
   const { buildHalfA4 } = require('./pdf');
-  const doc = buildHalfA4(settings, r);
+  const doc = buildHalfA4(settings, r, logoFilePath());
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="${r.receipt_number}-half.pdf"`);
   doc.pipe(res);

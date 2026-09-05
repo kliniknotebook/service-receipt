@@ -8,11 +8,15 @@ function statusLabel(status) {
   return (status || 'diterima').charAt(0).toUpperCase() + (status || 'diterima').slice(1);
 }
 
-function buildA4(settings, r) {
+function buildA4(settings, r, logoPath) {
   const doc = new PDFDocument({ size: 'A4', margin: 40 });
   const remaining = (r.estimated_cost || 0) - (r.down_payment || 0);
 
   // Header
+  if (logoPath) {
+    try { doc.image(logoPath, 40, doc.y, { width: 70 }); } catch (e) {}
+    doc.moveDown(0.5);
+  }
   doc.fontSize(20).fillColor('#2563eb').text(settings.shop_name || 'Service Center', { align: 'left' });
   doc.fontSize(10).fillColor('#444');
   if (settings.shop_address) doc.text(settings.shop_address);
@@ -104,13 +108,17 @@ function buildA4(settings, r) {
   return doc;
 }
 
-function buildHalfA4(settings, r) {
+function buildHalfA4(settings, r, logoPath) {
   // Half Letter: 139.7 x 215.9 mm => points (1mm=2.835): 396 x 612
   const doc = new PDFDocument({ size: [396, 612], margin: 25 });
   const remaining = (r.estimated_cost || 0) - (r.down_payment || 0);
   const width = 346;
   const baseX = 25;
 
+  if (logoPath) {
+    try { doc.image(logoPath, baseX, doc.y, { width: 40 }); } catch (e) {}
+    doc.moveDown(0.5);
+  }
   doc.fontSize(14).fillColor('#2563eb').text(settings.shop_name || 'Service Center');
   doc.fontSize(8).fillColor('#444');
   if (settings.shop_address) doc.text(settings.shop_address);

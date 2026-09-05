@@ -146,6 +146,15 @@
       <h2>Pengaturan Toko</h2>
       <form id="settings-form" class="form-card">
         <div class="form-group">
+          <label>Logo Toko</label>
+          <img id="logo-preview" class="logo-preview" alt="Logo Toko">
+          <input type="file" id="logo-upload" accept="image/png,image/jpeg,image/gif,image/webp">
+          <small class="form-hint">PNG/JPG maks 2MB. Logo muncul di struk, setengah A4, dan A4.</small>
+          <div class="form-actions" style="justify-content:flex-start">
+            <button type="button" class="btn btn-sm btn-secondary" id="logo-remove">Hapus Logo</button>
+          </div>
+        </div>
+        <div class="form-group">
           <label>Nama Toko</label>
           <input type="text" id="set-shop_name">
         </div>

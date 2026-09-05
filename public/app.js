@@ -384,6 +384,7 @@ function statusLabel(status) {
 function renderDotMatrix(r, remaining) {
   return `
     <div class="receipt-header">
+      ${logoHtml()}
       <h2>${settings.shop_name || 'Service Center'}</h2>
       <p>${settings.shop_address || ''}</p>
       <p>Telp: ${settings.shop_phone || '-'}</p>
@@ -457,6 +458,7 @@ function renderA4(r, remaining) {
   return `
     <div class="a4-header">
       <div class="a4-brand">
+        ${logoHtml()}
         <h1>${settings.shop_name || 'Service Center'}</h1>
         <p>${settings.shop_address || ''}</p>
         <p>Telp: ${settings.shop_phone || '-'}</p>
@@ -537,6 +539,7 @@ function renderHalfA4(r, remaining) {
   return `
     <div class="half-header">
       <div>
+        ${logoHtml()}
         <h1>${settings.shop_name || 'Service Center'}</h1>
         <p>${settings.shop_address || ''} ${settings.shop_phone ? '| Telp: ' + settings.shop_phone : ''}</p>
       </div>
@@ -631,10 +634,67 @@ async function loadSettings() {
     document.getElementById('set-shop_phone').value = settings.shop_phone || '';
     document.getElementById('set-shop_footer').value = settings.shop_footer || '';
     document.getElementById('set-username').value = settings.admin_username || '';
+    updateLogoPreview();
   } catch (err) {
     showToast('Gagal memuat pengaturan', 'error');
   }
 }
+
+function logoHtml() {
+  return settings.shop_logo ? `<img src="${settings.shop_logo}" alt="logo" class="print-logo">` : '';
+}
+
+function updateLogoPreview() {
+  const img = document.getElementById('logo-preview');
+  if (settings.shop_logo) {
+    img.src = settings.shop_logo;
+    img.style.display = 'block';
+  } else {
+    img.src = '';
+    img.style.display = 'none';
+  }
+}
+
+document.getElementById('logo-upload').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try {
+      const res = await fetch(`${API}/settings/logo`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + localStorage.getItem('token')
+        },
+        body: JSON.stringify({ data: reader.result, filename: file.name })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.error || 'Gagal mengunggah logo', 'error');
+        return;
+      }
+      settings = await res.json();
+      updateLogoPreview();
+      showToast('Logo berhasil diunggah');
+    } catch (err) {
+      showToast('Gagal mengunggah logo', 'error');
+    }
+  };
+  reader.readAsDataURL(file);
+});
+
+document.getElementById('logo-remove').addEventListener('click', async () => {
+  try {
+    await fetch(`${API}/settings/logo`, { method: 'DELETE' });
+    settings.shop_logo = '';
+    updateLogoPreview();
+    document.getElementById('logo-upload').value = '';
+    showToast('Logo berhasil dihapus');
+  } catch (err) {
+    showToast('Gagal menghapus logo', 'error');
+  }
+});
 
 document.getElementById('settings-form').addEventListener('submit', async (e) => {
   e.preventDefault();
