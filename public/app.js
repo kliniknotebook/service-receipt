@@ -171,7 +171,7 @@ async function loadReceipts() {
           <div class="btn-group">
             <button class="btn btn-sm btn-secondary" onclick="editReceipt(${r.id})" title="Edit">✏️</button>
             <button class="btn btn-sm btn-success" onclick="printReceipt(${r.id})" title="Cetak">🖨️</button>
-            <button class="btn btn-sm btn-secondary" onclick="copyStatusLink(${r.id})" title="Link status pelanggan">🔗</button>
+            <button class="btn btn-sm btn-secondary" onclick="shareStatusLink(${r.id})" title="Kirim link status via WhatsApp">🔗</button>
             <div class="export-menu">
               <button class="btn btn-sm btn-primary" title="Export PDF">📄</button>
               <div class="export-options">
@@ -317,22 +317,37 @@ async function deleteReceipt(id) {
   }
 }
 
-// Copy link status pelanggan
-async function copyStatusLink(id) {
+// Normalisasi nomor HP ke format WA (628xx)
+function waPhone(p) {
+  if (!p) return '';
+  let n = String(p).replace(/[^\d]/g, '');
+  if (n.startsWith('0')) n = '62' + n.slice(1);
+  else if (n.startsWith('8')) n = '62' + n;
+  return n;
+}
+
+// Kirim link status pelanggan via WhatsApp
+async function shareStatusLink(id) {
   try {
     const r = await fetch(`${API}/receipts/${id}`).then(x => x.json());
     const url = `${location.origin}/track.html?no=${encodeURIComponent(r.receipt_number)}&hp=${encodeURIComponent(r.customer_phone || '')}`;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      await navigator.clipboard.writeText(url);
+    const wa = waPhone(r.customer_phone);
+    if (wa) {
+      const msg = `🔧 *Status Service - ${r.receipt_number}*\n\nPerangkat: ${[r.device_type, r.device_brand, r.device_model].filter(Boolean).join(' ')}\n\nCek status perbaikan Anda di sini:\n${url}`;
+      window.open(`https://wa.me/${wa}?text=${encodeURIComponent(msg)}`, '_blank');
     } else {
-      const ta = document.createElement('textarea');
-      ta.value = url;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      ta.remove();
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = url;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+      }
+      showToast('Pelanggan belum punya no. HP. Link disalin.');
     }
-    showToast('Link status pelanggan disalin');
   } catch (err) {
     showToast('Gagal membuat link', 'error');
   }
