@@ -1,0 +1,16 @@
+{
+  "name": "service-receipt",
+  "version": "1.0.0",
+  "description": "Aplikasi Tanda Terima Service Online",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
+    "pdfkit": "^0.15.2",
+    "sql.js": "^1.11.0"
+  }
+}

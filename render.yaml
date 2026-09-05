@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: service-receipt
+    runtime: docker
+    plan: starter
+    autoDeploy: true
+    healthCheckPath: /
+    envVars:
+      - key: PORT
+        value: "3000"
+      - key: NODE_ENV
+        value: production
+      - key: DB_PATH
+        value: /opt/data/receipts.db
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+    disk:
+      name: receipts-data
+      mountPath: /opt/data
+      sizeGB: 1
