@@ -1,0 +1,63 @@
+=====================================================
+ PANDUAN PENJUAL — APLIKASI TANDA TERIMA SERVICE (WEB)
+=====================================================
+
+APA INI
+  Aplikasi Tanda Terima Service versi ONLINE (web).
+  Bisa diakses dari komputer, HP, atau laptop mana pun
+  — tanpa WAJIB instal software (cukup buka browser).
+  Cocok untuk kasir bengkel/layanan servis perangkat.
+
+ISI PAKET (service-receipt-casaos.zip)
+  - install.sh        : skrip instal UNIVERSAL (semua server ber-Docker)
+  - docker-compose.yml: konfigurasi service
+  - Dockerfile        : definisi image (otomatis dibangun saat instal)
+  - public/           : tampilan web
+  - src/              : kode server
+  - .env.example      : contoh pengaturan akun admin
+  - render.yaml       : untuk deploy di platform Render
+  - railway.json      : untuk deploy di platform Railway
+
+FITUR
+  - Tanda terima (input pelanggan, device, keluhan, biaya, DP)
+  - Cetak: Struk DotMatrix, Setengah A4, A4  + Export PDF
+  - Upload LOGO toko (tampil di semua cetakan & PDF)
+  - Dashboard statistik + Laporan pendapatan per periode
+  - Cari & filter status (Diterima/Diproses/Selesai/Diambil)
+  - Halaman "Cek Status" untuk PELANGGAN (tanpa login)
+  - Kirim link status langsung ke WhatsApp pelanggan (tombol 🔗)
+  - Login admin + bisa ganti password
+
+CARA JUAL
+  Mode 1 — Paket install sendiri (sekali bayar):
+    Kirim ZIP + panduan. Pembeli install sendiri di server
+    ber-Docker (CasaOS / VPS / mini PC). Anda tidak ada
+    biaya bulanan.
+
+  Mode 2 — SaaS langganan (bulanan):
+    Anda yang hosting (Railway / Render / VPS), pembeli hanya
+    buka link.  PERLU penyesuaian dulu menjadi multi-tenant
+    (tiap toko punya akun + data sendiri).
+
+SARAN HARGA (menyesuaikan pasar EXE Anda)
+  - Mode paket  : sesuaikan dengan harga EXE (jual per instalasi)
+  - Mode SaaS   : Rp 25.000–75.000/bulan per toko (contoh)
+
+CARA INSTALL CEPAT (untuk pembeli)
+  1. Kirim folder/ZIP ke server (mis. /opt/tandaterima)
+  2. Di server: cd /opt/tandaterima
+  3. chmod +x install.sh
+  4. sudo ./install.sh
+  5. Selesai — buka http://IP-server:3000
+
+BATASAN PAKET SAAT INI
+  - Satu database untuk SATU toko (bukan multi-tenant).
+  - Mode SaaS perlu kerja tambahan sebelum dijual sebagai
+    layanan massal.
+
+CATATAN PENTING
+  - Ganti password admin setelah install.
+  - Backup berkala: salin folder data/ (receipts.db + uploads).
+  - Data pembeli tidak pernah keluar dari server mereka
+    (tidak terkait akun penjual).
+=====================================================

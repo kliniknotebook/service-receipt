@@ -1,0 +1,64 @@
+====================================================
+ PANDUAN PENGGUNA — APLIKASI TANDA TERIMA SERVICE (WEB)
+====================================================
+
+PERSIAPAN (dilakukan pemilik/pemasang)
+  1. Ekstrak paket aplikasi di server.
+  2. Buka terminal server, masuk ke folder aplikasi.
+  3. Jalankan:
+        chmod +x install.sh
+        sudo ./install.sh
+  4. Saat diminta, buat Username & Password ADMIN.
+  5. Selesai. Buka lewat browser: http://alamat-server:3000
+
+MASUK KE APLIKASI
+  - Buka alamat di atas di browser (komputer/HP).
+  - Login dengan Username & Password yang dibuat saat install.
+
+MEMBUAT TANDA TERIMA
+  1. Klik "+ Tanda Terima Baru".
+  2. Isi: pelanggan, device, keluhan, biaya, DP, status.
+  3. Klik "Simpan".
+
+MENCETAK
+  - Klik ikon printer (🖨️) di baris tanda terima.
+  - Pilih ukuran: Struk DotMatrix / Setengah A4 / A4.
+  - Klik "Cetak". (Export PDF lewat ikon 📄)
+
+MENAMB AH LOGO TOKO
+  1. Buka menu "Pengaturan".
+  2. Di bagian "Logo Toko", pilih file gambar (PNG/JPG, maks 2MB).
+  3. Logo otomatis tampil di struk, A4, dan PDF.
+
+MENAMBAH LAPORAN PENDAPATAN
+  - Buka "Laporan", tentukan rentang tanggal, klik "Tampilkan".
+
+KIRIM STATUS KE PELANGGAN (WhatsApp)
+  - Klik ikon tautan (🔗) di baris tanda terima.
+  - WhatsApp terbuka ke nomor pelanggan dengan LINK SUDAH TERISI.
+  - Anda tinggal tekan Kirim. Pelanggan cukup mengetuk link
+    untuk melihat status: Diterima → Diproses → Selesai → Diambil.
+
+PELANGGAN MENGETAHUI STATUS (tanpa admin)
+  - Buka halaman: http://alamat-server:3000/track.html
+  - Masukkan No. Receipt + No. HP saat menitipkan.
+  - Atau langsung dari link WhatsApp yang dikirim admin.
+
+MENGGANTI PASSWORD ADMIN
+  - Menu "Pengaturan" → bagian "Keamanan".
+  - Isi password baru + konfirmasi, simpan.
+
+ANTAR JARINGAN (LAN/WiFi)
+  - Pastikan perangkat dalam jaringan yang sama dengan server.
+  - Buka: http://IP-server:3000
+  - IP server dapat dilihat saat proses install tercetak otomatis.
+
+TROUBLESHOOTING
+  - "Tidak bisa diakses": pastikan server aktif (`docker compose ps`).
+  - Lupa password: pemilik harus atur ulang dari file server.
+  - Data hilang/mau pindah server: salin folder data/ yang lama.
+
+BACKUP (WAJIB)
+  - Salin folder data/ (berisi receipts.db dan uploads/).
+  - Lakukan rutin, mis. seminggu sekali, atau saat server dimatikan.
+====================================================
