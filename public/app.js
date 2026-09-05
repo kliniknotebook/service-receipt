@@ -171,6 +171,7 @@ async function loadReceipts() {
           <div class="btn-group">
             <button class="btn btn-sm btn-secondary" onclick="editReceipt(${r.id})" title="Edit">✏️</button>
             <button class="btn btn-sm btn-success" onclick="printReceipt(${r.id})" title="Cetak">🖨️</button>
+            <button class="btn btn-sm btn-secondary" onclick="copyStatusLink(${r.id})" title="Link status pelanggan">🔗</button>
             <div class="export-menu">
               <button class="btn btn-sm btn-primary" title="Export PDF">📄</button>
               <div class="export-options">
@@ -313,6 +314,27 @@ async function deleteReceipt(id) {
     loadReceipts();
   } catch (err) {
     showToast('Gagal menghapus data', 'error');
+  }
+}
+
+// Copy link status pelanggan
+async function copyStatusLink(id) {
+  try {
+    const r = await fetch(`${API}/receipts/${id}`).then(x => x.json());
+    const url = `${location.origin}/track.html?no=${encodeURIComponent(r.receipt_number)}&hp=${encodeURIComponent(r.customer_phone || '')}`;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(url);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = url;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    }
+    showToast('Link status pelanggan disalin');
+  } catch (err) {
+    showToast('Gagal membuat link', 'error');
   }
 }
 

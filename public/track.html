@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cek Status Service</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔧</text></svg>">
+  <style>
+    body { background: #f1f5f9; }
+    .track-wrap { max-width: 520px; margin: 0 auto; padding: 24px 16px; }
+    .track-header {
+      background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 50%, #3b82f6 100%);
+      color: #fff;
+      border-radius: 16px;
+      padding: 28px 24px;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .track-header img.track-logo {
+      max-height: 56px; max-width: 160px; object-fit: contain;
+      background: #fff; border-radius: 8px; padding: 4px; margin-bottom: 10px;
+    }
+    .track-header h1 { font-size: 1.4rem; margin: 0 0 4px; }
+    .track-header p { margin: 0; opacity: .9; font-size: .9rem; }
+    .track-card {
+      background: #fff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,.08);
+      padding: 24px; margin-bottom: 16px;
+    }
+    .track-card h2 { font-size: 1rem; margin: 0 0 16px; color: #1e3a5f; }
+    .track-result { display: none; }
+    .track-result.open { display: block; }
+    .status-badge {
+      display: inline-block; padding: 6px 14px; border-radius: 999px;
+      font-weight: 700; font-size: .9rem; color: #fff;
+    }
+    .status-diterima { background: #f59e0b; }
+    .status-diproses { background: #3b82f6; }
+    .status-selesai { background: #10b981; }
+    .status-diambil { background: #6b7280; }
+    .track-timeline { margin-top: 18px; }
+    .tl-step { display: flex; gap: 14px; position: relative; padding-bottom: 20px; }
+    .tl-step:last-child { padding-bottom: 0; }
+    .tl-dot {
+      width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+      border: 3px solid #cbd5e1; background: #fff; position: relative; z-index: 1;
+    }
+    .tl-step.done .tl-dot { border-color: #10b981; background: #10b981; }
+    .tl-step.done .tl-dot::after { content: '✓'; color: #fff; font-size: .7rem; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+    .tl-step.active .tl-dot { border-color: #3b82f6; background: #3b82f6; box-shadow: 0 0 0 4px rgba(59,130,246,.2); }
+    .tl-step.active .tl-dot::after { content: ''; width: 8px; height: 8px; background: #fff; border-radius: 50%; position: absolute; top: 4px; left: 4px; }
+    .tl-line { position: absolute; left: 10px; top: 22px; bottom: 2px; width: 2px; background: #cbd5e1; }
+    .tl-line.colored { background: #10b981; }
+    .tl-body { padding-top: 2px; }
+    .tl-body strong { font-size: .92rem; display: block; }
+    .tl-body span { font-size: .82rem; color: #666; }
+    .track-info { margin-top: 16px; border-top: 1px dashed #ddd; padding-top: 12px; }
+    .track-info div { display: flex; justify-content: space-between; font-size: .88rem; padding: 4px 0; }
+    .track-info div span:first-child { color: #666; }
+    .track-info div span:last-child { text-align: right; font-weight: 500; }
+    .track-error { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; border-radius: 8px; padding: 12px 16px; font-size: .88rem; margin-bottom: 16px; display: none; }
+    .track-error.open { display: block; }
+    .track-links { text-align: center; margin-top: 20px; }
+    .back-to-top { color: #64748b; font-size: .85rem; text-decoration: none; }
+    .spinner { display: none; width: 22px; height: 22px; border: 3px solid #bfdbfe; border-top-color: #2563eb; border-radius: 50%; animation: spin .7s linear infinite; margin: 0 auto; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="track-wrap">
+    <div class="track-header">
+      <img id="hdr-logo" class="track-logo" alt="logo" style="display:none">
+      <h1 id="hdr-name">Cek Status Service</h1>
+      <p id="hdr-sub">Masukkan nomor tanda terima untuk melihat status perbaikan</p>
+    </div>
+
+    <div class="track-error" id="track-error"></div>
+
+    <form id="track-form" class="track-card">
+      <h2>Tanda Terima Service</h2>
+      <div class="form-group">
+        <label>No. Receipt</label>
+        <input type="text" id="t-no" placeholder="Contoh: SRV-20260905-0001">
+      </div>
+      <div class="form-group">
+        <label>No. HP (saat menitipkan)</label>
+        <input type="text" id="t-hp" placeholder="Contoh: 081703503786">
+      </div>
+      <button type="submit" class="btn btn-primary btn-block" id="t-submit">Lihat Status</button>
+      <div class="spinner" id="t-spinner"></div>
+    </form>
+
+    <div class="track-card track-result" id="track-result"></div>
+
+    <div class="track-links">
+      <a class="back-to-top" href="#" onclick="showForm(); return false;">Cek nomor lain</a>
+    </div>
+  </div>
+
+  <script>
+    const API = '/api';
+    const STEPS = [
+      { key: 'diterima', label: 'Diterima', desc: 'Barang sudah diterima' },
+      { key: 'diproses', label: 'Diproses', desc: 'Sedang dikerjakan teknisi' },
+      { key: 'selesai', label: 'Selesai', desc: 'Perbaikan selesai, siap diambil' },
+      { key: 'diambil', label: 'Diambil', desc: 'Barang sudah diambil pelanggan' }
+    ];
+
+    function statusLabel(s) {
+      return (s || '').charAt(0).toUpperCase() + (s || '').slice(1);
+    }
+
+    function renderResult(d) {
+      const idx = STEPS.findIndex(x => x.key === d.status);
+      let timeline = '';
+      STEPS.forEach((st, i) => {
+        const cls = i < idx ? 'done' : (i === idx ? 'active' : '');
+        timeline += `
+          <div class="tl-step ${cls}">
+            ${i < STEPS.length - 1 ? '<div class="tl-line' + (i < idx ? ' colored' : '') + '"></div>' : ''}
+            <div class="tl-dot"></div>
+            <div class="tl-body">
+              <strong>${st.label}</strong>
+              <span>${st.desc}</span>
+            </div>
+          </div>`;
+      });
+      document.getElementById('track-result').innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:4px">
+          <h2 style="margin:0">${d.receipt_number}</h2>
+          <span class="status-badge status-${d.status}">${statusLabel(d.status)}</span>
+        </div>
+        <div class="track-info">
+          <div><span>Nama</span><span>${d.customer_name || '-'}</span></div>
+          <div><span>Device</span><span>${[d.device_type, d.device_brand, d.device_model].filter(Boolean).join(' ') || '-'}</span></div>
+          <div><span>Keluhan</span><span>${d.complaint || '-'}</span></div>
+          <div><span>Diterima</span><span>${(d.created_at || '').slice(0, 16)}</span></div>
+          ${d.updated_at && d.status !== 'diterima' ? `<div><span>Update</span><span>${(d.updated_at || '').slice(0, 16)}</span></div>` : ''}
+        </div>
+        <div class="track-timeline">${timeline}</div>`;
+      document.getElementById('track-result').classList.add('open');
+    }
+
+    function hideForm() {
+      document.getElementById('track-form').style.display = 'none';
+      document.querySelector('.track-links').style.display = 'block';
+    }
+    function showForm() {
+      document.getElementById('track-form').style.display = 'block';
+      document.getElementById('track-result').classList.remove('open');
+      document.querySelector('.track-links').style.display = 'none';
+    }
+
+    async function doTrack(no, hp) {
+      const err = document.getElementById('track-error');
+      const spinner = document.getElementById('t-spinner');
+      const btn = document.getElementById('t-submit');
+      err.classList.remove('open');
+      btn.style.display = 'none';
+      spinner.style.display = 'block';
+      try {
+        const res = await fetch(`${API}/public/track?no=${encodeURIComponent(no)}&hp=${encodeURIComponent(hp)}`);
+        const data = await res.json();
+        if (!res.ok) {
+          err.textContent = data.error || 'Terjadi kesalahan. Coba lagi.';
+          err.classList.add('open');
+        } else {
+          renderResult(data);
+        }
+      } catch (e) {
+        err.textContent = 'Tidak dapat terhubung. Coba lagi.';
+        err.classList.add('open');
+      } finally {
+        spinner.style.display = 'none';
+        btn.style.display = '';
+      }
+    }
+
+    document.getElementById('track-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const no = document.getElementById('t-no').value.trim();
+      const hp = document.getElementById('t-hp').value.trim();
+      if (!no || !hp) return;
+      hideForm();
+      doTrack(no, hp);
+    });
+
+    // Isi otomatis dari ?no=...&hp=...
+    (function prefill() {
+      const p = new URLSearchParams(location.search);
+      const no = p.get('no');
+      const hp = p.get('hp');
+      if (no) document.getElementById('t-no').value = no;
+      if (hp) document.getElementById('t-hp').value = hp;
+      if (no && hp) {
+        document.getElementById('track-form').dispatchEvent(new Event('submit'));
+      }
+    })();
+
+    // Info toko
+    fetch(`${API}/public/shopinfo`).then(r => r.json()).then(s => {
+      document.getElementById('hdr-name').textContent = s.shop_name || 'Cek Status Service';
+      document.getElementById('hdr-sub').textContent = (s.shop_address ? s.shop_address + ' · ' : '') + 'Masukkan nomor tanda terima untuk melihat status perbaikan';
+      const logo = document.getElementById('hdr-logo');
+      if (s.shop_logo) { logo.src = s.shop_logo; logo.style.display = 'inline-block'; }
+    }).catch(() => {});
+  </script>
+</body>
+</html>

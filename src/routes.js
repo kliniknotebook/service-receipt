@@ -98,6 +98,34 @@ router.post('/auth/logout', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// ============ ENDPOINT PUBLIK (tanpa login) ============
+
+// Info toko untuk halaman publik
+router.get('/public/shopinfo', (req, res) => {
+  const rows = queryAll('SELECT * FROM settings');
+  const obj = {};
+  rows.forEach(r => { if (r.key !== 'admin_password') obj[r.key] = r.value; });
+  res.json(obj);
+});
+
+// Cek status tanda terima oleh pelanggan (wajib: no receipt + no HP)
+router.get('/public/track', (req, res) => {
+  const { no, hp } = req.query;
+  if (!no || !hp) {
+    return res.status(400).json({ error: 'No. Receipt dan No. HP wajib diisi' });
+  }
+  const row = queryOne(
+    `SELECT receipt_number, customer_name, customer_phone, device_type,
+       device_brand, device_model, complaint, status, created_at, updated_at
+     FROM receipts WHERE receipt_number = ? AND customer_phone = ?`,
+    [no.trim(), hp.trim()]
+  );
+  if (!row) {
+    return res.status(404).json({ error: 'Tidak ditemukan. Periksa kembali No. Receipt dan No. HP.' });
+  }
+  res.json(row);
+});
+
 // Protect all routes below except auth
 router.use('/receipts', requireAuth);
 router.use('/stats', requireAuth);
