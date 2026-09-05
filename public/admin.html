@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Panel Admin - Service Receipt</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=2">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔧</text></svg>">
   <style>
     .admin-nav { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
@@ -130,6 +130,15 @@
             <label>Atas Nama (Pemilik Rekening)</label>
             <input type="text" id="set-bank_holder">
           </div>
+          <div class="form-group">
+            <label>QRIS (gambar QRIS statis Anda)</label>
+            <img id="qris-preview" class="logo-preview" alt="QRIS" style="display:none;max-width:200px;border:1px solid #e2e8f0;border-radius:8px">
+            <input type="file" id="qris-upload" accept="image/png,image/jpeg,image/webp">
+            <small class="form-hint">PNG/JPG maks 5MB. QRIS akan tampil di halaman bayar toko.</small>
+            <div class="form-actions" style="justify-content:flex-start">
+              <button type="button" class="btn btn-sm btn-secondary" id="qris-remove">Hapus QRIS</button>
+            </div>
+          </div>
           <button type="submit" class="btn btn-primary">Simpan Pengaturan</button>
         </form>
       </div>
@@ -160,6 +169,6 @@
     </div>
   </main>
 
-  <script src="admin.js"></script>
+  <script src="admin.js?v=2"></script>
 </body>
 </html>

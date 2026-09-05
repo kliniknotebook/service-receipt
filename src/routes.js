@@ -5,6 +5,7 @@ const path = require('path');
 const router = express.Router();
 const M = require('./master-db');
 const T = require('./tenant-db');
+const { MASTER_UPLOADS } = M;
 
 const tenantTokens = new Map();   // token -> tenantId
 const adminTokens = new Map();    // token -> timestamp
@@ -44,19 +45,20 @@ function pricingConfig() {
     trial_days: M.getSetting('trial_days') || '3',
     bank_name: M.getSetting('bank_name') || '',
     bank_account: M.getSetting('bank_account') || '',
-    bank_holder: M.getSetting('bank_holder') || ''
+    bank_holder: M.getSetting('bank_holder') || '',
+    qris_image: M.getSetting('qris_image') || ''
   };
 }
 
 function subscriptionPayload(t) {
-  const { price, trial_days, bank_name, bank_account, bank_holder } = pricingConfig();
+  const { price, trial_days, bank_name, bank_account, bank_holder, qris_image } = pricingConfig();
   return {
     effective_status: M.effectiveStatus(t),
     trial_end: t.trial_end,
     sub_end: t.sub_end,
     status: t.status,
     price, trial_days,
-    bank_name, bank_account, bank_holder
+    bank_name, bank_account, bank_holder, qris_image
   };
 }
 
@@ -526,11 +528,37 @@ router.get('/admin/settings', requireAdmin, (req, res) => {
 
 router.put('/admin/settings', requireAdmin, (req, res) => {
   const { price, trial_days, bank_name, bank_account, bank_holder } = req.body || {};
-  if (price !== undefined) M.setSetting('price', String(price));
+  if (price !== undefined) M.setSetting('price', String(price).replace(/[^\d]/g, '')) || 0;
   if (trial_days !== undefined) M.setSetting('trial_days', String(trial_days));
   if (bank_name !== undefined) M.setSetting('bank_name', String(bank_name));
   if (bank_account !== undefined) M.setSetting('bank_account', String(bank_account));
   if (bank_holder !== undefined) M.setSetting('bank_holder', String(bank_holder));
+  res.json(pricingConfig());
+});
+
+router.post('/admin/settings/qris', requireAdmin, (req, res) => {
+  const data = (req.body && req.body.data) || '';
+  const m = data.match(/^data:image\/(png|jpe?g|gif|webp);base64,(.+)$/i);
+  if (!m) return res.status(400).json({ error: 'QRIS harus berupa gambar (PNG/JPG)' });
+  const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
+  const buffer = Buffer.from(m[2], 'base64');
+  const MAX = 5 * 1024 * 1024;
+  if (buffer.length > MAX) return res.status(400).json({ error: 'Ukuran QRIS maksimal 5MB' });
+
+  fs.mkdirSync(MASTER_UPLOADS, { recursive: true });
+  fs.writeFileSync(path.join(MASTER_UPLOADS, 'qris.png'), buffer);
+
+  const url = `/qris/qris.png`;
+  M.setSetting('qris_image', url);
+  res.json(pricingConfig());
+});
+
+router.delete('/admin/settings/qris', requireAdmin, (req, res) => {
+  const current = M.getSetting('qris_image');
+  if (current) {
+    try { fs.unlinkSync(path.join(MASTER_UPLOADS, path.basename(current))); } catch (e) {}
+    M.run("DELETE FROM settings WHERE key = 'qris_image'");
+  }
   res.json(pricingConfig());
 });
 

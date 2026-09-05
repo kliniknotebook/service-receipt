@@ -5,6 +5,8 @@ const path = require('path');
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const MASTER_PATH = path.join(DATA_DIR, 'master.db');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+const MASTER_UPLOADS = path.join(DATA_DIR, 'master-uploads');
+if (!fs.existsSync(MASTER_UPLOADS)) fs.mkdirSync(MASTER_UPLOADS, { recursive: true });
 
 let db = null;
 let saveTimer = null;
@@ -151,4 +153,4 @@ function effectiveStatus(t) {
   return 'expired';
 }
 
-module.exports = { initDB, getDB, query, queryOne, run, getSetting, setSetting, genId, addDaysIso, extendByDays, effectiveStatus, maxIso, DATA_DIR, nowIso };
+module.exports = { initDB, getDB, query, queryOne, run, getSetting, setSetting, genId, addDaysIso, extendByDays, effectiveStatus, maxIso, DATA_DIR, MASTER_UPLOADS, nowIso };

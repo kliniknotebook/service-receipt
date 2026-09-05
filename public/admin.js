@@ -221,6 +221,9 @@ async function loadAdminSettings() {
   document.getElementById('set-bank_name').value = s.bank_name || '';
   document.getElementById('set-bank_account').value = s.bank_account || '';
   document.getElementById('set-bank_holder').value = s.bank_holder || '';
+  const q = document.getElementById('qris-preview');
+  if (s.qris_image) { q.src = s.qris_image; q.style.display = 'inline-block'; }
+  else { q.src = ''; q.style.display = 'none'; }
 }
 
 document.getElementById('admin-settings-form').addEventListener('submit', async (e) => {
@@ -236,6 +239,39 @@ document.getElementById('admin-settings-form').addEventListener('submit', async 
   };
   await api('/admin/settings', { method: 'PUT', body: JSON.stringify(body) });
   showToast('Pengaturan disimpan');
+});
+
+document.getElementById('qris-upload').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try {
+      const res = await api('/admin/settings/qris', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: reader.result })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.error || 'Gagal upload QRIS', 'error');
+        return;
+      }
+      const s = await res.json();
+      const q = document.getElementById('qris-preview');
+      q.src = s.qris_image; q.style.display = 'inline-block';
+      showToast('QRIS berhasil diunggah');
+    } catch (err) { showToast('Gagal upload QRIS', 'error'); }
+  };
+  reader.readAsDataURL(file);
+});
+
+document.getElementById('qris-remove').addEventListener('click', async () => {
+  await api('/admin/settings/qris', { method: 'DELETE' });
+  const q = document.getElementById('qris-preview');
+  q.src = ''; q.style.display = 'none';
+  document.getElementById('qris-upload').value = '';
+  showToast('QRIS dihapus');
 });
 
 // ---------- create tenant ----------
