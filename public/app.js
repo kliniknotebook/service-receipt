@@ -78,6 +78,17 @@ function formatRupiah(n) {
   return 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 }
 
+// Parse input rupiah (menerima "950.000", "950000", "950,000")
+function parseRupiah(s) {
+  const n = parseInt(String(s || '0').replace(/[^\d]/g, ''), 10);
+  return isNaN(n) ? 0 : n;
+}
+
+// Tampilkan angka dengan pemisah ribuan "950.000"
+function numId(n) {
+  return Number(n || 0).toLocaleString('id-ID');
+}
+
 // Status badge
 function statusBadge(status) {
   const labels = {
@@ -259,8 +270,8 @@ function openModal(data = null) {
     document.getElementById('f-device_serial').value = data.device_serial || '';
     document.getElementById('f-complaint').value = data.complaint || '';
     document.getElementById('f-notes').value = data.notes || '';
-    document.getElementById('f-estimated_cost').value = data.estimated_cost || 0;
-    document.getElementById('f-down_payment').value = data.down_payment || 0;
+    document.getElementById('f-estimated_cost').value = numId(data.estimated_cost);
+    document.getElementById('f-down_payment').value = numId(data.down_payment);
     document.getElementById('f-status').value = data.status || 'diterima';
   } else {
     document.getElementById('modal-title').textContent = 'Tanda Terima Baru';
@@ -296,8 +307,8 @@ document.getElementById('receipt-form').addEventListener('submit', async (e) => 
     device_serial: document.getElementById('f-device_serial').value,
     complaint: document.getElementById('f-complaint').value,
     notes: document.getElementById('f-notes').value,
-    estimated_cost: parseInt(document.getElementById('f-estimated_cost').value) || 0,
-    down_payment: parseInt(document.getElementById('f-down_payment').value) || 0,
+    estimated_cost: parseRupiah(document.getElementById('f-estimated_cost').value),
+    down_payment: parseRupiah(document.getElementById('f-down_payment').value),
     status: document.getElementById('f-status').value
   };
 

@@ -216,7 +216,7 @@ async function unsuspendTenant(id) {
 async function loadAdminSettings() {
   const s = await api('/admin/settings').then(r => r.json());
   adminSettings = s;
-  document.getElementById('set-price').value = s.price || '50000';
+  document.getElementById('set-price').value = s.price ? Number(s.price).toLocaleString('id-ID') : '50000';
   document.getElementById('set-trial_days').value = s.trial_days || '3';
   document.getElementById('set-bank_name').value = s.bank_name || '';
   document.getElementById('set-bank_account').value = s.bank_account || '';
@@ -225,8 +225,10 @@ async function loadAdminSettings() {
 
 document.getElementById('admin-settings-form').addEventListener('submit', async (e) => {
   e.preventDefault();
+  const priceRaw = document.getElementById('set-price').value;
+  const price = parseInt(String(priceRaw).replace(/[^\d]/g, ''), 10) || 50000;
   const body = {
-    price: document.getElementById('set-price').value,
+    price: String(price),
     trial_days: document.getElementById('set-trial_days').value,
     bank_name: document.getElementById('set-bank_name').value,
     bank_account: document.getElementById('set-bank_account').value,
