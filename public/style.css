@@ -739,28 +739,28 @@ table.a4-sign-table {
   .print-a4 { max-width: 190mm; width: 100%; }
 
   body.printing-halfa4 .print-halfa4 { font-size: 19px; line-height: 1.4; min-height: 0; max-width: 132mm; width: 132mm; }
-  #print-content.print-halfa4 { height: 198mm; overflow: hidden; }
+  #print-content.print-halfa4 { height: 205mm; overflow: hidden; }
   body.printing-halfa4 .half-header { gap: 13px; padding-bottom: 9px; margin-bottom: 11px; border-bottom-width: 3px; }
   body.printing-halfa4 .half-brand { gap: 13px; min-width: 0; }
-  body.printing-halfa4 .half-header h1 { font-size: 1.36rem; margin: 0 0 3px; }
+  body.printing-halfa4 .half-header h1 { font-size: 1.3rem; margin: 0 0 3px; }
   body.printing-halfa4 .half-header p { margin: 2px 0; font-size: .95rem; overflow-wrap: break-word; }
-  body.printing-halfa4 .half-title h2 { font-size: 1.18rem; padding: 6px 13px; }
+  body.printing-halfa4 .half-title h2 { font-size: 1.14rem; padding: 6px 13px; }
   body.printing-halfa4 .half-title p { margin: 2px 0; font-size: .95rem; }
-  body.printing-halfa4 .print-logo { max-height: 55px; }
+  body.printing-halfa4 .print-logo { max-height: 52px; }
   body.printing-halfa4 table.a4-table { margin-bottom: 9px; }
   body.printing-halfa4 table.a4-table th,
   body.printing-halfa4 table.a4-table td { padding: 5px 10px; overflow-wrap: break-word; }
   body.printing-halfa4 table.a4-table th { font-size: .9rem; }
   body.printing-halfa4 .a4-field { margin: 3px 0; font-size: .95rem; }
-  body.printing-halfa4 .a4-cell-mid { min-height: 36px; }
-  body.printing-halfa4 .a4-cell-half { min-height: 24px; }
+  body.printing-halfa4 .a4-cell-mid { min-height: 34px; }
+  body.printing-halfa4 .a4-cell-half { min-height: 23px; }
   body.printing-halfa4 .a4-cell-mid, body.printing-halfa4 .a4-cell-half { overflow-wrap: break-word; }
   body.printing-halfa4 .a4-cost { border-radius: 6px; margin-bottom: 9px; }
   body.printing-halfa4 .a4-cost-row { padding: 6px 11px; font-size: .95rem; }
   body.printing-halfa4 .a4-status { margin-bottom: 9px; font-size: .95rem; }
   body.printing-halfa4 table.a4-sign-table { margin-top: 12px; }
   body.printing-halfa4 .a4-sign-label td { font-size: .85rem; }
-  body.printing-halfa4 .a4-sign-space { height: 63px; }
+  body.printing-halfa4 .a4-sign-space { height: 55px; }
   body.printing-halfa4 .a4-sign-name { font-size: 1rem; padding-top: 6px; }
   body.printing-halfa4 .a4-footer { margin-top: 12px; font-size: 1rem; padding-top: 8px; }
   body.printing-halfa4 .a4-footer .a4-disclaimer { margin-top: 4px; }
