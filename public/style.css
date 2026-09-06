@@ -785,6 +785,21 @@ table.a4-sign-table {
 
 .login-card .form-group { text-align: left; }
 
+.sub-qris-wrap {
+  padding: 12px 0 4px;
+}
+
+.sub-qris {
+  display: block;
+  margin: 0 auto;
+  max-width: 260px;
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .12);
+}
+
 .login-error {
   color: var(--danger);
   font-size: .85rem;
