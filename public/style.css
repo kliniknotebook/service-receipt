@@ -738,32 +738,38 @@ table.a4-sign-table {
   .print-halfa4 { max-width: 150mm; width: 150mm; }
   .print-a4 { max-width: 190mm; width: 100%; }
 
-  body.printing-halfa4 .print-halfa4 { font-size: 23px; line-height: 1.4; min-height: 0; max-width: 150mm; width: 150mm; }
-  body.printing-halfa4 .half-header { gap: 15px; padding-bottom: 11px; margin-bottom: 13px; border-bottom-width: 3px; }
-  body.printing-halfa4 .half-brand { gap: 15px; min-width: 0; }
-  body.printing-halfa4 .half-header h1 { font-size: 1.65rem; margin: 0 0 3px; }
-  body.printing-halfa4 .half-header p { margin: 2px 0; font-size: 1.16rem; overflow-wrap: break-word; }
-  body.printing-halfa4 .half-title h2 { font-size: 1.43rem; padding: 7px 15px; }
-  body.printing-halfa4 .half-title p { margin: 2px 0; font-size: 1.16rem; }
-  body.printing-halfa4 .print-logo { max-height: 66px; }
-  body.printing-halfa4 table.a4-table { margin-bottom: 11px; }
+  body.printing-halfa4 .print-halfa4 { font-size: 20px; line-height: 1.4; min-height: 0; max-width: 150mm; width: 150mm; }
+  body.printing-halfa4 .half-header { gap: 13px; padding-bottom: 10px; margin-bottom: 12px; border-bottom-width: 3px; }
+  body.printing-halfa4 .half-brand { gap: 13px; min-width: 0; }
+  body.printing-halfa4 .half-header h1 { font-size: 1.43rem; margin: 0 0 3px; }
+  body.printing-halfa4 .half-header p { margin: 2px 0; font-size: 1rem; overflow-wrap: break-word; }
+  body.printing-halfa4 .half-title h2 { font-size: 1.24rem; padding: 6px 13px; }
+  body.printing-halfa4 .half-title p { margin: 2px 0; font-size: 1rem; }
+  body.printing-halfa4 .print-logo { max-height: 57px; }
+  body.printing-halfa4 table.a4-table { margin-bottom: 10px; }
   body.printing-halfa4 table.a4-table th,
-  body.printing-halfa4 table.a4-table td { padding: 6px 11px; overflow-wrap: break-word; }
-  body.printing-halfa4 table.a4-table th { font-size: 1.1rem; }
-  body.printing-halfa4 .a4-field { margin: 3px 0; font-size: 1.16rem; }
-  body.printing-halfa4 .a4-cell-mid { min-height: 44px; }
-  body.printing-halfa4 .a4-cell-half { min-height: 29px; }
+  body.printing-halfa4 table.a4-table td { padding: 5px 10px; overflow-wrap: break-word; }
+  body.printing-halfa4 table.a4-table th { font-size: .95rem; }
+  body.printing-halfa4 .a4-field { margin: 3px 0; font-size: 1rem; }
+  body.printing-halfa4 .a4-cell-mid { min-height: 38px; }
+  body.printing-halfa4 .a4-cell-half { min-height: 25px; }
   body.printing-halfa4 .a4-cell-mid, body.printing-halfa4 .a4-cell-half { overflow-wrap: break-word; }
-  body.printing-halfa4 .a4-cost { border-radius: 6px; margin-bottom: 11px; }
-  body.printing-halfa4 .a4-cost-row { padding: 7px 13px; font-size: 1.16rem; }
-  body.printing-halfa4 .a4-status { margin-bottom: 11px; font-size: 1.16rem; }
-  body.printing-halfa4 table.a4-sign-table { margin-top: 13px; }
-  body.printing-halfa4 .a4-sign-label td { font-size: 1.05rem; }
-  body.printing-halfa4 .a4-sign-space { height: 77px; }
-  body.printing-halfa4 .a4-sign-name { font-size: 1.21rem; padding-top: 7px; }
-  body.printing-halfa4 .a4-footer { margin-top: 13px; font-size: 1.21rem; padding-top: 9px; }
+  body.printing-halfa4 .a4-cost { border-radius: 6px; margin-bottom: 10px; }
+  body.printing-halfa4 .a4-cost-row { padding: 6px 11px; font-size: 1rem; }
+  body.printing-halfa4 .a4-status { margin-bottom: 10px; font-size: 1rem; }
+  body.printing-halfa4 table.a4-sign-table { margin-top: 12px; }
+  body.printing-halfa4 .a4-sign-label td { font-size: .9rem; }
+  body.printing-halfa4 .a4-sign-space { height: 67px; }
+  body.printing-halfa4 .a4-sign-name { font-size: 1.05rem; padding-top: 6px; }
+  body.printing-halfa4 .a4-footer { margin-top: 12px; font-size: 1.05rem; padding-top: 8px; }
   body.printing-halfa4 .a4-footer .a4-disclaimer { margin-top: 4px; }
-  body.printing-halfa4 .a4-cut-guide { margin-top: 8mm; border-top: 2px dashed #999; color: #999; font-size: .94rem; }
+  body.printing-halfa4 .a4-cut-guide { margin-top: 8mm; border-top: 2px dashed #999; color: #999; font-size: .81rem; }
+  body.printing-halfa4 table.a4-table,
+  body.printing-halfa4 .a4-cost,
+  body.printing-halfa4 .a4-status,
+  body.printing-halfa4 table.a4-sign-table,
+  body.printing-halfa4 .a4-footer,
+  body.printing-halfa4 .half-title { break-inside: avoid; page-break-inside: avoid; }
 }
 
 @page {
