@@ -706,14 +706,36 @@ table.a4-sign-table {
   #print-content, #print-content * { visibility: visible; }
   #print-content {
     position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
+    left: 0;
     top: 0;
     margin: 0;
   }
   .print-dotmatrix { max-width: 400px; width: 400px; }
   .print-halfa4 { max-width: 190mm; width: 100%; }
   .print-a4 { max-width: 190mm; width: 100%; }
+
+  body.printing-halfa4 .print-halfa4 { font-size: 12px; line-height: 1.4; min-height: 0; }
+  body.printing-halfa4 .half-header { padding-bottom: 6px; margin-bottom: 8px; }
+  body.printing-halfa4 .half-header h1 { font-size: 1.1rem; margin-bottom: 0; }
+  body.printing-halfa4 .half-header p { margin: 1px 0; font-size: .9rem; }
+  body.printing-halfa4 .half-title { margin-top: 0; }
+  body.printing-halfa4 .half-title h2 { font-size: 1rem; padding: 4px 12px; margin-bottom: 2px; }
+  body.printing-halfa4 .half-title p { margin: 1px 0; font-size: .9rem; }
+  body.printing-halfa4 table.a4-table { margin-bottom: 8px; }
+  body.printing-halfa4 table.a4-table th,
+  body.printing-halfa4 table.a4-table td { padding: 3px 6px; }
+  body.printing-halfa4 .a4-field { margin: 1px 0; font-size: .9rem; }
+  body.printing-halfa4 .a4-cell-mid { min-height: 38px; }
+  body.printing-halfa4 .a4-cell-half { min-height: 24px; }
+  body.printing-halfa4 .a4-cost-row { padding: 4px 12px; font-size: .95rem; }
+  body.printing-halfa4 .a4-status { margin-bottom: 8px; font-size: .95rem; }
+  body.printing-halfa4 table.a4-sign-table { margin-top: 12px; }
+  body.printing-halfa4 .a4-sign-label td { font-size: .8rem; }
+  body.printing-halfa4 .a4-sign-space { height: 45px; }
+  body.printing-halfa4 .a4-sign-name { font-size: .85rem; padding-top: 4px; }
+  body.printing-halfa4 .a4-footer { margin-top: 8px; font-size: .85rem; padding-top: 6px; }
+  body.printing-halfa4 .a4-footer .a4-disclaimer { margin-top: 2px; }
+  body.printing-halfa4 .print-logo { max-height: 40px; }
 }
 
 @page {
