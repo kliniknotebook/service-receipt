@@ -421,9 +421,10 @@ tr:hover td { background: #f8fafc; }
 }
 
 .print-halfa4 {
-  max-width: 132mm;
-  width: 100%;
+  max-width: 126mm;
+  width: 126mm;
   margin: 0 auto;
+  box-sizing: border-box;
   font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 13px;
   line-height: 1.5;
@@ -735,10 +736,10 @@ table.a4-sign-table {
   #print-preview { position: static !important; padding: 0 !important; margin: 0 !important; background: #fff; overflow: visible; }
   #print-content { position: static; margin: 0 auto; }
   .print-dotmatrix { max-width: 400px; width: 400px; }
-  .print-halfa4 { max-width: 132mm; width: 132mm; }
+  .print-halfa4 { max-width: 126mm; width: 126mm; }
   .print-a4 { max-width: 190mm; width: 100%; }
 
-  body.printing-halfa4 .print-halfa4 { font-size: 19px; line-height: 1.4; min-height: 0; max-width: 132mm; width: 132mm; }
+  body.printing-halfa4 .print-halfa4 { font-size: 19px; line-height: 1.4; min-height: 0; max-width: 126mm; width: 126mm; box-sizing: border-box; }
   #print-content.print-halfa4 { height: 205mm; overflow: hidden; }
   body.printing-halfa4 .half-header { gap: 13px; padding-bottom: 9px; margin-bottom: 11px; border-bottom-width: 3px; }
   body.printing-halfa4 .half-brand { gap: 13px; min-width: 0; }

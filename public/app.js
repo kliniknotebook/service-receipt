@@ -444,7 +444,7 @@ function renderPrint() {
 
 const PRINT_PAGE_DEFS = {
   dotmatrix: 'size: 241mm 279mm; margin: 5mm;',
-  halfa4: 'size: A5 portrait; margin: 0;',
+  halfa4: 'size: 165mm 215mm; margin: 0;',
   a4: 'size: A4 portrait; margin: 10mm;'
 };
 
