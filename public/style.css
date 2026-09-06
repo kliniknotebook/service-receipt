@@ -792,7 +792,7 @@ table.a4-sign-table {
 .sub-qris {
   display: block;
   margin: 0 auto;
-  max-width: 260px;
+  max-width: 220px;
   width: 100%;
   height: auto;
   border-radius: 12px;
