@@ -442,6 +442,24 @@ function renderPrint() {
   }
 }
 
+const PRINT_PAGE_DEFS = {
+  dotmatrix: 'size: 241mm 279mm; margin: 5mm;',
+  halfa4: 'size: 139.7mm 215.9mm; margin: 8mm;',
+  a4: 'size: A4 portrait; margin: 10mm;'
+};
+
+window.addEventListener('beforeprint', () => {
+  const sel = document.getElementById('print-size');
+  const size = (sel && sel.value) || 'a4';
+  let st = document.getElementById('print-page-override');
+  if (!st) {
+    st = document.createElement('style');
+    st.id = 'print-page-override';
+    document.head.appendChild(st);
+  }
+  st.textContent = '@page { ' + (PRINT_PAGE_DEFS[size] || PRINT_PAGE_DEFS.a4) + ' }';
+});
+
 function statusLabel(status) {
   return (status || 'diterima').charAt(0).toUpperCase() + (status || 'diterima').slice(1);
 }
