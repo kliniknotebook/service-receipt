@@ -421,7 +421,7 @@ tr:hover td { background: #f8fafc; }
 }
 
 .print-halfa4 {
-  max-width: 150mm;
+  max-width: 132mm;
   width: 100%;
   margin: 0 auto;
   font-family: 'Segoe UI', Arial, sans-serif;
@@ -735,35 +735,35 @@ table.a4-sign-table {
   #print-preview { position: static !important; padding: 0 !important; margin: 0 !important; background: #fff; overflow: visible; }
   #print-content { position: static; margin: 0 auto; }
   .print-dotmatrix { max-width: 400px; width: 400px; }
-  .print-halfa4 { max-width: 150mm; width: 150mm; }
+  .print-halfa4 { max-width: 132mm; width: 132mm; }
   .print-a4 { max-width: 190mm; width: 100%; }
 
-  body.printing-halfa4 .print-halfa4 { font-size: 18px; line-height: 1.4; min-height: 0; max-width: 150mm; width: 150mm; }
-  body.printing-halfa4 .half-header { gap: 12px; padding-bottom: 9px; margin-bottom: 11px; border-bottom-width: 3px; }
-  body.printing-halfa4 .half-brand { gap: 12px; min-width: 0; }
-  body.printing-halfa4 .half-header h1 { font-size: 1.32rem; margin: 0 0 2px; }
-  body.printing-halfa4 .half-header p { margin: 2px 0; font-size: .98rem; overflow-wrap: break-word; }
-  body.printing-halfa4 .half-title h2 { font-size: 1.16rem; padding: 5px 12px; }
-  body.printing-halfa4 .half-title p { margin: 2px 0; font-size: .98rem; }
-  body.printing-halfa4 .print-logo { max-height: 52px; }
+  body.printing-halfa4 .print-halfa4 { font-size: 19px; line-height: 1.4; min-height: 0; max-width: 132mm; width: 132mm; }
+  #print-content.print-halfa4 { height: 198mm; overflow: hidden; }
+  body.printing-halfa4 .half-header { gap: 13px; padding-bottom: 9px; margin-bottom: 11px; border-bottom-width: 3px; }
+  body.printing-halfa4 .half-brand { gap: 13px; min-width: 0; }
+  body.printing-halfa4 .half-header h1 { font-size: 1.36rem; margin: 0 0 3px; }
+  body.printing-halfa4 .half-header p { margin: 2px 0; font-size: .95rem; overflow-wrap: break-word; }
+  body.printing-halfa4 .half-title h2 { font-size: 1.18rem; padding: 6px 13px; }
+  body.printing-halfa4 .half-title p { margin: 2px 0; font-size: .95rem; }
+  body.printing-halfa4 .print-logo { max-height: 55px; }
   body.printing-halfa4 table.a4-table { margin-bottom: 9px; }
   body.printing-halfa4 table.a4-table th,
-  body.printing-halfa4 table.a4-table td { padding: 5px 9px; overflow-wrap: break-word; }
-  body.printing-halfa4 table.a4-table th { font-size: .93rem; }
-  body.printing-halfa4 .a4-field { margin: 2px 0; font-size: .98rem; }
+  body.printing-halfa4 table.a4-table td { padding: 5px 10px; overflow-wrap: break-word; }
+  body.printing-halfa4 table.a4-table th { font-size: .9rem; }
+  body.printing-halfa4 .a4-field { margin: 3px 0; font-size: .95rem; }
   body.printing-halfa4 .a4-cell-mid { min-height: 36px; }
   body.printing-halfa4 .a4-cell-half { min-height: 24px; }
   body.printing-halfa4 .a4-cell-mid, body.printing-halfa4 .a4-cell-half { overflow-wrap: break-word; }
   body.printing-halfa4 .a4-cost { border-radius: 6px; margin-bottom: 9px; }
-  body.printing-halfa4 .a4-cost-row { padding: 6px 11px; font-size: .98rem; }
-  body.printing-halfa4 .a4-status { margin-bottom: 9px; font-size: .98rem; }
-  body.printing-halfa4 table.a4-sign-table { margin-top: 11px; }
-  body.printing-halfa4 .a4-sign-label td { font-size: .88rem; }
-  body.printing-halfa4 .a4-sign-space { height: 60px; }
+  body.printing-halfa4 .a4-cost-row { padding: 6px 11px; font-size: .95rem; }
+  body.printing-halfa4 .a4-status { margin-bottom: 9px; font-size: .95rem; }
+  body.printing-halfa4 table.a4-sign-table { margin-top: 12px; }
+  body.printing-halfa4 .a4-sign-label td { font-size: .85rem; }
+  body.printing-halfa4 .a4-sign-space { height: 63px; }
   body.printing-halfa4 .a4-sign-name { font-size: 1rem; padding-top: 6px; }
-  body.printing-halfa4 .a4-footer { margin-top: 11px; font-size: 1rem; padding-top: 8px; }
+  body.printing-halfa4 .a4-footer { margin-top: 12px; font-size: 1rem; padding-top: 8px; }
   body.printing-halfa4 .a4-footer .a4-disclaimer { margin-top: 4px; }
-  body.printing-halfa4 .a4-cut-guide { margin-top: 8mm; border-top: 2px dashed #999; color: #999; font-size: .78rem; }
   body.printing-halfa4 table.a4-table,
   body.printing-halfa4 .a4-cost,
   body.printing-halfa4 .a4-status,
