@@ -700,6 +700,7 @@ table.a4-sign-table {
 .empty-state p { font-size: .95rem; }
 
 @media print {
+  html, body { margin: 0; padding: 0; }
   .no-print { display: none !important; }
   .print-preview { padding: 0; background: #fff; }
   body * { visibility: hidden; }
@@ -755,7 +756,7 @@ table.a4-sign-table {
 
 @page halfa4 {
   size: 139.7mm 215.9mm; /* Half Letter = setengah A4, portrait */
-  margin: 8mm;
+  margin: 5mm;
 }
 
 @page a4page {
