@@ -440,6 +440,27 @@ function renderPrint() {
   } else {
     content.innerHTML = renderDotMatrix(r, remaining);
   }
+  applyHalfa4Fit();
+}
+
+function applyHalfa4Fit() {
+  const size = document.getElementById('print-size');
+  if (!size || size.value !== 'halfa4') return;
+  const sheet = document.querySelector('#print-content.print-halfa4');
+  if (!sheet) return;
+  let inner = sheet.querySelector(':scope > .halfa4-scaler');
+  if (!inner) {
+    inner = document.createElement('div');
+    inner.className = 'halfa4-scaler';
+    while (sheet.firstChild) inner.appendChild(sheet.firstChild);
+    sheet.appendChild(inner);
+  }
+  const guide = inner.querySelector('.a4-cut-guide');
+  if (guide) sheet.appendChild(guide);
+  const avail = 138 * (96 / 25.4) * 0.97;
+  const h = inner.offsetHeight;
+  const s = h > avail ? avail / h : 1;
+  inner.style.transform = 'scale(' + s.toFixed(4) + ')';
 }
 
 const PRINT_PAGE_DEFS = {
@@ -458,6 +479,7 @@ window.addEventListener('beforeprint', () => {
     document.head.appendChild(st);
   }
   st.textContent = '@page { ' + (PRINT_PAGE_DEFS[size] || PRINT_PAGE_DEFS.a4) + ' }';
+  applyHalfa4Fit();
 });
 
 function statusLabel(status) {
