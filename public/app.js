@@ -444,7 +444,7 @@ function renderPrint() {
 
 const PRINT_PAGE_DEFS = {
   dotmatrix: 'size: 241mm 279mm; margin: 5mm;',
-  halfa4: 'size: 139.7mm 215.9mm; margin: 5mm;',
+  halfa4: 'size: A4 portrait; margin: 0;',
   a4: 'size: A4 portrait; margin: 10mm;'
 };
 
@@ -701,6 +701,8 @@ function renderHalfA4(r, remaining) {
     <div class="a4-footer">
       <p>${settings.shop_footer || 'Terima kasih atas kepercayaan Anda'}</p>
     </div>
+
+    <div class="a4-cut-guide">&#9668; POTONG DI SINI &#9658;</div>
   `;
 }
 
