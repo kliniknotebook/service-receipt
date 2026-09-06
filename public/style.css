@@ -523,9 +523,25 @@ tr:hover td { background: #f8fafc; }
 .a4-title p { margin: 4px 0; font-size: 1rem; }
 
 .half-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   border-bottom: 3px double #000;
   padding-bottom: 10px;
   margin-bottom: 14px;
+}
+
+.half-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.half-brand-text {
+  flex: 1;
+  min-width: 0;
 }
 
 .half-header h1 {
@@ -538,7 +554,7 @@ tr:hover td { background: #f8fafc; }
 
 .half-title {
   text-align: center;
-  margin-top: 6px;
+  margin-top: 0;
 }
 
 .half-title h2 {

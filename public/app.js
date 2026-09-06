@@ -621,10 +621,12 @@ function renderA4(r, remaining) {
 function renderHalfA4(r, remaining) {
   return `
     <div class="half-header">
-      <div>
+      <div class="half-brand">
         ${logoHtml()}
-        <h1>${settings.shop_name || 'Service Center'}</h1>
-        <p>${settings.shop_address || ''} ${settings.shop_phone ? '| Telp: ' + settings.shop_phone : ''}</p>
+        <div class="half-brand-text">
+          <h1>${settings.shop_name || 'Service Center'}</h1>
+          <p>${settings.shop_address || ''} ${settings.shop_phone ? '| Telp: ' + settings.shop_phone : ''}</p>
+        </div>
       </div>
       <div class="half-title">
         <h2>TANDA TERIMA SERVICE</h2>
