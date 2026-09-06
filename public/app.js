@@ -897,13 +897,22 @@ function openSubOverlay() {
           : s.effective_status === 'suspended'
             ? ' Akun Anda dinonaktifkan admin.'
             : '');
+    const qrisWrap = document.getElementById('sub-qris-wrap');
+    const qrisImg = document.getElementById('sub-qris');
     if (s.effective_status === 'suspended') {
       document.getElementById('sub-form').style.display = 'none';
       bank.style.display = 'none';
+      qrisWrap.style.display = 'none';
     } else {
       document.getElementById('sub-form').style.display = '';
       bank.style.display = bankHtml ? '' : 'none';
       bank.innerHTML = bankHtml;
+      if (s.qris_image) {
+        qrisImg.src = s.qris_image;
+        qrisWrap.style.display = '';
+      } else {
+        qrisWrap.style.display = 'none';
+      }
     }
   }).catch(() => {});
 }

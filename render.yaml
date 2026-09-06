@@ -10,8 +10,8 @@ services:
         value: "3000"
       - key: NODE_ENV
         value: production
-      - key: DB_PATH
-        value: /opt/data/receipts.db
+      - key: DATA_DIR
+        value: /opt/data
       - key: ADMIN_USERNAME
         sync: false
       - key: ADMIN_PASSWORD

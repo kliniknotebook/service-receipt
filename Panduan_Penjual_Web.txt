@@ -5,75 +5,120 @@
 APA INI
   Aplikasi Tanda Terima Service versi ONLINE (web).
   Bisa diakses dari komputer, HP, atau laptop mana pun
-  — tanpa WAJIB instal software (cukup buka browser).
+  — tanpa wajib instal software (cukup buka browser).
   Cocok untuk kasir bengkel/layanan servis perangkat.
 
 ISI PAKET (service-receipt-casaos.zip)
-  - install.sh        : skrip instal UNIVERSAL (semua server ber-Docker)
+  - install.sh        : skrip instal UNIVERSAL (server ber-Docker)
   - docker-compose.yml: konfigurasi service
-  - Dockerfile        : definisi image (otomatis dibangun saat instal)
+  - Dockerfile        : definisi image (dibangun saat instal)
   - public/           : tampilan web
   - src/              : kode server
   - .env.example      : contoh pengaturan akun admin
-  - render.yaml       : untuk deploy di platform Render
-  - railway.json      : untuk deploy di platform Railway
+  - render.yaml       : deploy di platform Render
+  - railway.json      : deploy di platform Railway
+  - Panduan_Penjual_Web.txt & Panduan_Pengguna_Web.txt
 
 FITUR
   - Tanda terima (input pelanggan, device, keluhan, biaya, DP)
-  - Cetak: Struk DotMatrix, Setengah A4, A4  + Export PDF
+    - Nomor kwitansi otomatis berseri per hari (SR-YYYYMMDD-0001...)
+  - Cetak: Struk DotMatrix, Setengah A4, A4 + Export PDF
   - Upload LOGO toko (tampil di semua cetakan & PDF)
   - Dashboard statistik + Laporan pendapatan per periode
-  - Cari & filter status (Diterima/Diproses/Selesai/Diambil)
-  - Halaman "Cek Status" untuk PELANGGAN (tanpa login)
-  - Kirim link status langsung ke WhatsApp pelanggan (tombol 🔗)
-  - Login admin + bisa ganti password
+  - Cari & filter status (Diterima/Dikerjakan/Selesai/Diambil)
+  - Halaman "Cek Status" untuk PELANGGAN (tanpa login / track.html)
+  - Kirim link status ke WhatsApp pelanggan (tombol 🔗 di tiap baris)
+  - Multi-tenant + billing trial + pembayaran manual via admin
 
 CARA JUAL
   Mode 1 — Paket install sendiri (sekali bayar):
     Kirim ZIP + panduan. Pembeli install sendiri di server
-    ber-Docker (CasaOS / VPS / mini PC). Anda tidak ada
-    biaya bulanan.
+    ber-Docker (CasaOS / VPS / mini PC). Tidak ada biaya bulanan.
 
   Mode 2 — SaaS langganan (bulanan): SUDAH TERBUILT (multi-tenant)
-    Satu server, banyak toko. Tiap toko daftar sendiri dan data
+    Satu server, banyak toko. Setiap toko daftar sendiri, data
     mereka TERPISAH satu sama lain.
-    - Toko daftar di:  /daftar   (masa trial 3 hari, bisa diubah)
-    - Toko pakai:       /        (login dengan akun mereka)
-    - Pelanggan cek:    /track.html?u=<username-toko>
-    - Anda kelola:      /admin   (panel penjual)
+    - Toko daftar di :  /daftar   (trial 3 hari, bisa diubah)
+    - Toko pakai    :  /         (login akun mereka sendiri)
+    - Pelanggan cek :  /track.html?u=<username-toko>
+    - Anda kelola   :  /admin    (panel penjual)
+    - Billing       :  Rp 50.000/bulan per toko (default, bisa diubah)
 
-  PANEL ADMIN ANDA (/admin, login admin)
+  PANEL ADMIN ANDA (/admin — login dengan akun penjual)
     1. Lihat semua toko + status (Trial / Aktif / Habis / Nonaktif)
     2. Konfirmasi pembayaran 1 klik → toko otomatis aktif +30 hari
     3. Perpanjang manual / nonaktifkan / aktifkan toko
-    4. Buat akun toko manual (tanpa menunggu daftar sendiri)
-    5. Atur harga (Rp/bulan), lama trial, no. rekening tujuan transfer
+    4. Buat akun toko manual (tanpa menunggu toko daftar sendiri)
+    5. Atur harga (Rp/bulan), lama trial, data bank tujuan transfer
+    6. Upload QRIS pembayaran (muncul di halaman bayar toko)
 
   ALUR TRIAL & BILLING (otomatis)
     - Toko daftar → TRIAL 3 hari, fitur penuh.
-    - Masa habis → otomatis terkunci (super admin akses data tetap).
-    - Toko upload bukti transfer dari halaman bayar (muncul otomatis
-      saat habis) → Anda konfirmasi di /admin → aktif 30 hari.
-    - Kalau sudah aktif, banner di aplikasi menampilkan sisa hari.
+    - Masa habis  → otomatis terkunci (data tetap aman).
+    - Toko upload bukti transfer dari halaman bayar (muncul saat
+      habis) → Anda konfirmasi di /admin → toko aktif +30 hari.
+    - Saat aktif, banner di aplikasi menampilkan sisa hari.
+
+  PEMBAYARAN SAAT INI
+    - Transfer (rekening BCA diatur di /admin) ATAU scan QRIS
+      (upload gambar QRIS di /admin → tab Pengaturan).
+    - Bukti dikirim toko → Anda konfirmasi manual satu klik.
+    - (Integrasi Midtrans/otomatis bisa ditambah bila nanti butuh
+      akun merchant resmi.)
+
+ACTIVASI AKUN ADMIN (penting, saat deploy pertama)
+  Cara 1 — install.sh (CasaOS/Docker): skrip akan menanyakan
+           username & password admin saat pertama kali.
+  Cara 2 — env: set ADMIN_USERNAME & ADMIN_PASSWORD.
+           Berlaku SAAT DATABASE PERTAMA DIBUAT saja; setelah itu
+           ubah lewat panel admin (/admin → Keamanan).
+  Default bila tidak diatur: admin / admin123 (WAJIB diganti).
+
+DEPLOY
+
+  A. Server Rumahan / VPS dengan Docker (CasaOS, dll)
+     1. Ekstrak paket ZIP di folder yang diinginkan.
+     2. chmod +x install.sh; sudo ./install.sh
+     3. Selesai. Buka http://IP-server:3000
+     4. Backup: salin seluruh folder ./data
+        (master.db + tenants/ + uploads/ = data SEMUA toko).
+
+  B. Deploy PUBLIC di Railway (Pakai akun Railway)
+     1. Buat project baru → dari repository GitHub (atau taruh kode
+        ini di repo GitHub Anda dulu).
+     2. Railway otomatis mendeteksi railway.json (builder Dockerfile).
+     3. Tambahkan VOLUME (disk) lalu mount ke /app/data agar data
+        bertahan antar-deploy (WAJIB untuk data toko).
+     4. Tambahkan env di Settings:
+          PORT=3000
+          ADMIN_USERNAME=<username-admin>
+          ADMIN_PASSWORD=<password-admin-kuat>
+     5. Deploy. URL publik muncul otomatis (https://....railway.app).
+
+  C. Deploy PUBLIC di Render (Pakai akun Render)
+     1. Repos GitHub dulu, lalu New + Web Service → pilih repo.
+     2. Render membaca render.yaml (runtime docker).
+     3. Set secret env ADMIN_USERNAME & ADMIN_PASSWORD.
+     4. PERHATIAN: di tab Settings, harga plan "Starter" sudah
+        termasuk disk. render.yaml otomatis mount /opt/data
+        sebagai penyimpanan data.
+     5. Deploy. URL publik muncul otomatis (https://....onrender.com).
+
+  CATATAN DEPLOY PUBLIC
+    - WAJIB gunakan HTTPS/hero domain rail/render (built-in).
+    - Ganti password admin segera setelah deploy pertama.
+    - Isi data bank & harga di /admin begitu live.
+    - Backup rutin bila data benar-benar penting: unduh file
+      data/master.db + folder data/tenants dari server/disk.
 
 SARAN HARGA (menyesuaikan pasar EXE Anda)
   - Mode paket  : sesuaikan dengan harga EXE (jual per instalasi)
   - Mode SaaS   : default sistem Rp 50.000/bulan per toko
-                  (bisa diubah kapan saja di /admin)
-
-BATASAN PAKET SAAT INI
-  - Pembayaran = TRANSFER + KONFIRMASI manual oleh penjual.
-    (Integrasi Midtrans/QRIS otomatis bisa ditambahkan kemudian,
-    butuh akun merchant resmi).
-  - Versi ini multi-tenant (banyak toko di 1 server).
+                  (ubah kapan saja di /admin)
 
 CATATAN PENTING
-  - Ganti password admin panel setelah install (via env
-    ADMIN_USERNAME / ADMIN_PASSWORD, atau default admin/admin123
-    — SEBAIKNYA ganti saat pertama deploy).
-  - Backup berkala: salin folder data/ SELURUHNYA
-    (master.db + tenants/ = data semua toko).
-  - Akses yang sudah ada (versi lama satu-toko) otomatis diimpor
-    menjadi toko pertama saat server pertama kali dijalankan
-    dengan versi baru. Username/password tetap sama.
+  - Versi ini multi-tenant (banyak toko di 1 server).
+  - Data yang sudah ada dari versi lama satu-toko otomatis diimpor
+    menjadi toko pertama saat server pertama dijalankan versi baru;
+    username/password tetap sama.
 =====================================================

@@ -3,62 +3,71 @@
 ====================================================
 
 PERSIAPAN (dilakukan pemilik/pemasang)
-  1. Ekstrak paket aplikasi di server.
-  2. Buka terminal server, masuk ke folder aplikasi.
-  3. Jalankan:
-        chmod +x install.sh
-        sudo ./install.sh
-  4. Saat diminta, buat Username & Password ADMIN.
-  5. Selesai. Buka lewat browser: http://alamat-server:3000
+  1. Server sudah disiapkan & aplikasi berjalan
+     (lihat Panduan_Penjual_Web.txt, bagian DEPLOY).
+  2. Anda membuat akun toko sendiri di alamat aplikasi
+     pada halaman "Daftar Toko", ATAU akun dibuatkan oleh
+     penjual (pakai /admin → tab Toko → "Buat Toko").
 
 MASUK KE APLIKASI
-  - Buka alamat di atas di browser (komputer/HP).
-  - Login dengan Username & Password yang dibuat saat install.
+  - Buka alamat aplikasi di browser (komputer/HP).
+  - Klik/masuk halaman login: http://alamat-server:3000/
+  - Login pakai Username & Password AKUN TOKO Anda.
+
+UJI COBA & LANGGANAN
+  - Akun baru otomatis TRIAL 3 hari dengan fitur penuh.
+  - Setelah habis, aplikasi menampilkan halaman bayar:
+      * Transfer ke rekening yang tertera, ATAU scan QRIS.
+      * Isi catatan transfer + unggah bukti, lalu kirim.
+  - Penjual mengonfirmasi → toko aktif 30 hari.
+  - Saat aktif, banner menampilkan sisa hari langganan.
 
 MEMBUAT TANDA TERIMA
   1. Klik "+ Tanda Terima Baru".
-  2. Isi: pelanggan, device, keluhan, biaya, DP, status.
-  3. Klik "Simpan".
+  2. Isi: pelanggan, no. HP, device, keluhan, biaya Estimasi,
+     Uang Muka (DP), status.
+  3. Klik "Simpan". Nomor kwitansi dibuat OTOMATIS berseri
+     per hari (contoh SR-20260906-0001) — tidak usah diisi sendiri.
 
 MENCETAK
   - Klik ikon printer (🖨️) di baris tanda terima.
   - Pilih ukuran: Struk DotMatrix / Setengah A4 / A4.
-  - Klik "Cetak". (Export PDF lewat ikon 📄)
+  - Klik "Cetak". (Ekspor PDF lewat ikon 📄)
 
-MENAMB AH LOGO TOKO
+MENAMBAH LOGO TOKO
   1. Buka menu "Pengaturan".
   2. Di bagian "Logo Toko", pilih file gambar (PNG/JPG, maks 2MB).
   3. Logo otomatis tampil di struk, A4, dan PDF.
 
-MENAMBAH LAPORAN PENDAPATAN
-  - Buka "Laporan", tentukan rentang tanggal, klik "Tampilkan".
+MELIHAT LAPORAN
+  - Buka "Laporan", tentukan periode, klik "Tampilkan".
 
 KIRIM STATUS KE PELANGGAN (WhatsApp)
   - Klik ikon tautan (🔗) di baris tanda terima.
   - WhatsApp terbuka ke nomor pelanggan dengan LINK SUDAH TERISI.
-  - Anda tinggal tekan Kirim. Pelanggan cukup mengetuk link
-    untuk melihat status: Diterima → Diproses → Selesai → Diambil.
+  - Anda tinggal tekan Kirim. Pelanggan mengetuk link untuk
+    melihat status: Diterima → Dikerjakan → Selesai → Diambil.
 
-PELANGGAN MENGETAHUI STATUS (tanpa admin)
+PELANGGAN MENGETAHUI STATUS (tanpa login)
   - Buka halaman: http://alamat-server:3000/track.html
   - Masukkan No. Receipt + No. HP saat menitipkan.
-  - Atau langsung dari link WhatsApp yang dikirim admin.
+  - Atau langsung dari link WhatsApp yang dikirim admin toko.
 
-MENGGANTI PASSWORD ADMIN
-  - Menu "Pengaturan" → bagian "Keamanan".
-  - Isi password baru + konfirmasi, simpan.
+MENGGANTI PASSWORD ADMIN TOKO / PENJUAL
+  - Panel penjual: /admin → tab "Keamanan".
+  - Simpan password penjual agar tidak tercecer.
 
 ANTAR JARINGAN (LAN/WiFi)
   - Pastikan perangkat dalam jaringan yang sama dengan server.
   - Buka: http://IP-server:3000
-  - IP server dapat dilihat saat proses install tercetak otomatis.
 
 TROUBLESHOOTING
-  - "Tidak bisa diakses": pastikan server aktif (`docker compose ps`).
-  - Lupa password: pemilik harus atur ulang dari file server.
-  - Data hilang/mau pindah server: salin folder data/ yang lama.
+  - "Tidak bisa diakses": pastikan server aktif
+    (`docker compose ps` di server / cek console deploy).
+  - Lupa password: penjual harus atur ulang dari panel /admin.
+  - Data hilang / pindah server: salin seluruh folder data/.
 
-BACKUP (WAJIB)
-  - Salin folder data/ (berisi receipts.db dan uploads/).
-  - Lakukan rutin, mis. seminggu sekali, atau saat server dimatikan.
+BACKUP (WAJIB bagi penjual)
+  - Salin folder data/ SELURUHNYA (master.db + tenants/ + uploads/).
+  - Lakukan rutin, mis. seminggu sekali.
 ====================================================
