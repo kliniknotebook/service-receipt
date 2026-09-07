@@ -298,11 +298,109 @@ router.use('/receipts', requireTenant);
 router.use('/stats', requireTenant);
 router.use('/settings', requireTenant);
 router.use('/report', requireTenant);
+router.use('/sync', requireTenant);
+
+// ============================================================
+//  SINKRONISASI 2 ARAH (EXE <=> Web), berbasis client_id
+// ============================================================
+// Daftar metadata nota (id, client_id, deleted, updated_at) sejak `since`
+router.get('/sync/pull', (req, res) => {
+  const since = req.query.since || '';
+  let rows;
+  if (since) {
+    rows = all(req,
+      `SELECT id, client_id, deleted, updated_at FROM receipts
+       WHERE updated_at > ? OR deleted = 1
+       ORDER BY updated_at ASC`, [since]);
+  } else {
+    rows = all(req, 'SELECT id, client_id, deleted, updated_at FROM receipts');
+  }
+  res.json(rows.filter(r => r.client_id));
+});
+
+// EXE mengirim perubahan (create/update/delete) berbasis client_id
+router.post('/sync/push', (req, res) => {
+  const { since, changes } = req.body || {};
+  if (!Array.isArray(changes)) return res.status(400).json({ error: 'changes harus array' });
+
+  for (const c of changes) {
+    if (!c || !c.client_id) continue;
+    if (c.action === 'delete') {
+      runq(req, "UPDATE receipts SET deleted = 1, updated_at = datetime('now','localtime') WHERE client_id = ?", [c.client_id]);
+    } else {
+      const d = c.data || {};
+      const exist = one(req, 'SELECT id FROM receipts WHERE client_id = ?', [c.client_id]);
+      if (exist) {
+        runq(req, `UPDATE receipts SET
+            customer_name = ?, customer_phone = ?, customer_address = ?,
+            device_type = ?, device_brand = ?, device_model = ?, device_serial = ?,
+            complaint = ?, notes = ?, estimated_cost = ?, down_payment = ?,
+            status = ?, deleted = 0, updated_at = datetime('now','localtime')
+          WHERE client_id = ?`, [
+          d.customer_name || '', d.customer_phone || '', d.customer_address || '',
+          d.device_type || '', d.device_brand || '', d.device_model || '', d.device_serial || '',
+          d.complaint || '', d.notes || '',
+          d.estimated_cost || 0, d.down_payment || 0, d.status || 'diterima', c.client_id
+        ]);
+      } else {
+        const rnum = d.receipt_number || `SRI-${Date.now()}-${Math.floor(Math.random()*10000)}`;
+        runq(req, `INSERT INTO receipts
+            (receipt_number, client_id, customer_name, customer_phone, customer_address,
+             device_type, device_brand, device_model, device_serial, complaint, notes,
+             estimated_cost, down_payment, status)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+          rnum, c.client_id,
+          d.customer_name || '', d.customer_phone || '', d.customer_address || '',
+          d.device_type || '', d.device_brand || '', d.device_model || '', d.device_serial || '',
+          d.complaint || '', d.notes || '',
+          d.estimated_cost || 0, d.down_payment || 0, d.status || 'diterima'
+        ]);
+      }
+    }
+  }
+
+  let rows = [];
+  if (since) {
+    rows = all(req,
+      `SELECT id, client_id, deleted, updated_at FROM receipts
+       WHERE updated_at > ? OR deleted = 1
+       ORDER BY updated_at ASC`, [since]);
+  } else {
+    rows = all(req, 'SELECT id, client_id, deleted, updated_at FROM receipts');
+  }
+  res.json(rows.filter(r => r.client_id));
+});
+
+// Tarik detail nota per client_id
+router.get('/sync/fetch/:clientId', (req, res) => {
+  const row = one(req, 'SELECT * FROM receipts WHERE client_id = ?', [req.params.clientId]);
+  if (!row) return res.status(404).json({ error: 'Tidak ditemukan' });
+  res.json({ ...row });
+});
+
+// Tarik detail banyak nota berdasarkan daftar client_id
+router.post('/sync/fetch', (req, res) => {
+  const ids = (req.body && req.body.ids) || [];
+  if (!Array.isArray(ids)) return res.status(400).json({ error: 'ids harus array' });
+  const out = [];
+  for (const cid of ids) {
+    if (!cid) continue;
+    const row = one(req, 'SELECT * FROM receipts WHERE client_id = ?', [cid]);
+    if (row && !row.deleted) out.push(row);
+  }
+  res.json(out);
+});
+
+// Semua nota lengkap (untuk sinkron penuh pertama)
+router.get('/sync/all', (req, res) => {
+  const rows = all(req, 'SELECT * FROM receipts WHERE client_id IS NOT NULL AND deleted = 0');
+  res.json(rows);
+});
 
 // List all receipts
 router.get('/receipts', (req, res) => {
   const { search, status } = req.query;
-  let sql = 'SELECT * FROM receipts WHERE 1=1';
+  let sql = 'SELECT * FROM receipts WHERE deleted = 0';
   const params = [];
   if (search) {
     sql += ' AND (receipt_number LIKE ? OR customer_name LIKE ? OR customer_phone LIKE ?)';
@@ -319,7 +417,7 @@ router.get('/receipts', (req, res) => {
 
 // Get single receipt
 router.get('/receipts/:id', (req, res) => {
-  const row = one(req, 'SELECT * FROM receipts WHERE id = ?', [parseInt(req.params.id)]);
+  const row = one(req, 'SELECT * FROM receipts WHERE id = ? AND deleted = 0', [parseInt(req.params.id)]);
   if (!row) return res.status(404).json({ error: 'Tidak ditemukan' });
   res.json(row);
 });

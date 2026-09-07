@@ -69,7 +69,9 @@ async function init(tenant) {
       down_payment INTEGER DEFAULT 0,
       status TEXT DEFAULT 'diterima',
       created_at TEXT DEFAULT (datetime('now','localtime')),
-      updated_at TEXT DEFAULT (datetime('now','localtime'))
+      updated_at TEXT DEFAULT (datetime('now','localtime')),
+      client_id TEXT,
+      deleted INTEGER DEFAULT 0
     )
   `);
   db.run(`
@@ -78,6 +80,11 @@ async function init(tenant) {
       value TEXT
     )
   `);
+
+  // Migrasi backward-compatible: tambah kolom sync bila DB lama belum punya
+  const cols = db.exec('PRAGMA table_info(receipts)')[0]?.values.map(r => r[1]) || [];
+  if (!cols.includes('client_id')) db.run('ALTER TABLE receipts ADD COLUMN client_id TEXT');
+  if (!cols.includes('deleted')) db.run('ALTER TABLE receipts ADD COLUMN deleted INTEGER DEFAULT 0');
 
   const defaults = {
     shop_name: tenant.shop_name || 'Service Center',
