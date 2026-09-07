@@ -2,7 +2,8 @@ name: Build Docker Image
 
 on:
   push:
-    branches: [main]
+    branches: [main, adminv3]
+    tags: ['v3admin-*']
   workflow_dispatch:
 
 jobs:
@@ -37,5 +38,6 @@ jobs:
           tags: |
             ghcr.io/kliniknotebook/service-receipt:latest
             ghcr.io/kliniknotebook/service-receipt:${{ github.sha }}
+            ghcr.io/kliniknotebook/service-receipt:${{ github.ref_name }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
