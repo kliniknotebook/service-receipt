@@ -344,17 +344,39 @@ router.post('/sync/push', (req, res) => {
         ]);
       } else {
         const rnum = d.receipt_number || `SRI-${Date.now()}-${Math.floor(Math.random()*10000)}`;
-        runq(req, `INSERT INTO receipts
+        // Karena receipt_number UNIQUE (termasuk baris soft-deleted), cek dulu;
+        // jika sudah ada, re-activate baris tsb dengan client_id baru alih-alih INSERT.
+        const existing = one(req,
+          `SELECT id FROM receipts WHERE receipt_number = ?`, [rnum]);
+        if (existing) {
+          runq(req, `UPDATE receipts SET
+              client_id = ?, deleted = 0,
+              customer_name = ?, customer_phone = ?, customer_address = ?,
+              device_type = ?, device_brand = ?, device_model = ?, device_serial = ?,
+              complaint = ?, notes = ?,
+              estimated_cost = ?, down_payment = ?, status = ?,
+              updated_at = datetime('now','localtime')
+            WHERE id = ?`, [
+            c.client_id,
+            d.customer_name || '', d.customer_phone || '', d.customer_address || '',
+            d.device_type || '', d.device_brand || '', d.device_model || '', d.device_serial || '',
+            d.complaint || '', d.notes || '',
+            d.estimated_cost || 0, d.down_payment || 0, d.status || 'diterima',
+            existing.id
+          ]);
+        } else {
+          runq(req, `INSERT INTO receipts
             (receipt_number, client_id, customer_name, customer_phone, customer_address,
              device_type, device_brand, device_model, device_serial, complaint, notes,
              estimated_cost, down_payment, status)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
-          rnum, c.client_id,
-          d.customer_name || '', d.customer_phone || '', d.customer_address || '',
-          d.device_type || '', d.device_brand || '', d.device_model || '', d.device_serial || '',
-          d.complaint || '', d.notes || '',
-          d.estimated_cost || 0, d.down_payment || 0, d.status || 'diterima'
-        ]);
+            rnum, c.client_id,
+            d.customer_name || '', d.customer_phone || '', d.customer_address || '',
+            d.device_type || '', d.device_brand || '', d.device_model || '', d.device_serial || '',
+            d.complaint || '', d.notes || '',
+            d.estimated_cost || 0, d.down_payment || 0, d.status || 'diterima'
+          ]);
+        }
       }
     }
   }
