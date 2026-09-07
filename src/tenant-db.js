@@ -128,4 +128,17 @@ function uploadsDir(tenantId) {
   return path.join(tenantDir(tenantId), 'uploads');
 }
 
-module.exports = { init, get, query, queryOne, run, tenantRoot, uploadsDir, tenantDir, save };
+function remove(tenantId) {
+  const entry = cache.get(tenantId);
+  if (entry && entry.db) {
+    try { entry.db.close(); } catch (e) {}
+    if (entry.timer) clearTimeout(entry.timer);
+  }
+  cache.delete(tenantId);
+  saveQueued.delete(tenantId);
+  try {
+    fs.rmSync(tenantDir(tenantId), { recursive: true, force: true });
+  } catch (e) {}
+}
+
+module.exports = { init, get, query, queryOne, run, tenantRoot, uploadsDir, tenantDir, save, remove };

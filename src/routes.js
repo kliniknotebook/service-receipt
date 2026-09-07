@@ -608,6 +608,15 @@ router.post('/admin/tenants/:id/unsuspend', requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
+router.delete('/admin/tenants/:id', requireAdmin, (req, res) => {
+  const tenant = M.queryOne('SELECT * FROM tenants WHERE id = ?', [req.params.id]);
+  if (!tenant) return res.status(404).json({ error: 'Toko tidak ditemukan' });
+  M.run("DELETE FROM tenants WHERE id = ?", [req.params.id]);
+  M.run("DELETE FROM payments WHERE tenant_id = ?", [req.params.id]);
+  T.remove(req.params.id);
+  res.json({ success: true });
+});
+
 router.get('/admin/payments', requireAdmin, (req, res) => {
   const { status } = req.query;
   let sql = 'SELECT * FROM payments';

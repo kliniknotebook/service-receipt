@@ -180,6 +180,7 @@ async function loadTenants() {
           ${t.effective_status === 'suspended' || t.status === 'suspended'
             ? `<button class="btn btn-sm btn-primary" onclick="unsuspendTenant('${t.id}')">Aktifkan</button>`
             : `<button class="btn btn-sm btn-danger" onclick="suspendTenant('${t.id}')">Nonaktifkan</button>`}
+          <button class="btn btn-sm btn-danger" onclick="deleteTenant('${t.id}','${t.shop_name.replace(/'/g, "\\'")}')">Hapus</button>
         </div>
       </td>
     </tr>
@@ -208,6 +209,19 @@ async function suspendTenant(id) {
 async function unsuspendTenant(id) {
   await api('/admin/tenants/' + id + '/unsuspend', { method: 'POST' });
   showToast('Toko diaktifkan kembali');
+  loadTenants();
+  loadOverview();
+}
+
+async function deleteTenant(id, name) {
+  if (!confirm('HAPUS PERMANEN toko "' + name + '"?\n\nSemua data toko (riwayat service, pengaturan) serta data pembayarannya akan dihapus dan TIDAK BISA dikembalikan. Lanjutkan?')) return;
+  if (!confirm('Yakin, hapus toko "' + name + '" SELAMANYA?')) return;
+  const res = await api('/admin/tenants/' + id, { method: 'DELETE' });
+  if (!res.ok) {
+    showToast('Gagal menghapus toko', 'error');
+    return;
+  }
+  showToast('Toko "' + name + '" dihapus');
   loadTenants();
   loadOverview();
 }
