@@ -485,7 +485,7 @@ router.put('/receipts/:id', (req, res) => {
       status = ?, updated_at = datetime('now','localtime')
     WHERE id = ?
   `, [
-    customer_name, customer_phone || '', customer_address || '',
+    customer_name || '', customer_phone || '', customer_address || '',
     device_type || '', device_brand || '', device_model || '', device_serial || '',
     complaint || '', notes || '',
     estimated_cost || 0, down_payment || 0, status || 'diterima',
@@ -497,11 +497,11 @@ router.put('/receipts/:id', (req, res) => {
   res.json(row);
 });
 
-// Delete receipt
+// Delete receipt (soft-delete agar tersinkron dua arah dengan EXE)
 router.delete('/receipts/:id', (req, res) => {
   const before = one(req, 'SELECT id FROM receipts WHERE id = ?', [parseInt(req.params.id)]);
-  runq(req, 'DELETE FROM receipts WHERE id = ?', [parseInt(req.params.id)]);
   if (!before) return res.status(404).json({ error: 'Tidak ditemukan' });
+  runq(req, "UPDATE receipts SET deleted = 1, updated_at = datetime('now','localtime') WHERE id = ?", [parseInt(req.params.id)]);
   res.json({ success: true });
 });
 
