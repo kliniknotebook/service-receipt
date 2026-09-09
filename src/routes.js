@@ -21,6 +21,43 @@ function createToken() {
   return crypto.randomBytes(24).toString('hex');
 }
 
+// ---------- Tanda tangan PDF publik (untuk link "Kirim via WA (PDF)") ----------
+const PDF_SECRET = process.env.PDF_SECRET || 'tts-web-pdf-v1';
+
+function pdfSign(tid, id) {
+  return crypto.createHash('sha256').update(`${tid}:${id}:${PDF_SECRET}`).digest('hex');
+}
+
+function pdfVerify(tid, id, sig) {
+  const expect = pdfSign(tid, id);
+  const a = Buffer.from(String(sig || ''));
+  const b = Buffer.from(expect);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+function sendPdf(res, row, settingsObj, logo, opts = {}) {
+  const { buildA4, buildHalfA4 } = require('./pdf');
+  const doc = opts.half ? buildHalfA4(settingsObj, row, logo) : buildA4(settingsObj, row, logo);
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition',
+    `${opts.disposition || 'attachment'}; filename="${row.receipt_number}${opts.half ? '-half' : ''}.pdf"`);
+  doc.pipe(res);
+  doc.end();
+}
+
+function tenantSettingsObjFromDb(tid) {
+  const rows = T.query(tid, 'SELECT * FROM settings');
+  const obj = {};
+  rows.forEach(r => { obj[r.key] = r.value; });
+  return obj;
+}
+
+function tenantLogoPathFor(tid, settingsObj) {
+  if (!settingsObj.shop_logo) return null;
+  const full = path.join(T.uploadsDir(tid), path.basename(settingsObj.shop_logo));
+  return fs.existsSync(full) ? full : null;
+}
+
 function cleanPayments(p) {
   return {
     id: p.id, tenant_id: p.tenant_id, amount: p.amount,
@@ -613,12 +650,7 @@ router.get('/receipts/:id/export', (req, res) => {
   const r = one(req, 'SELECT * FROM receipts WHERE id = ?', [parseInt(req.params.id)]);
   if (!r) return res.status(404).json({ error: 'Tidak ditemukan' });
   const settings = tenantSettingsObject(req);
-  const { buildA4 } = require('./pdf');
-  const doc = buildA4(settings, r, tenantLogoPath(req));
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename="${r.receipt_number}.pdf"`);
-  doc.pipe(res);
-  doc.end();
+  sendPdf(res, r, settings, tenantLogoPath(req));
 });
 
 // Export PDF (Setengah A4)
@@ -626,12 +658,37 @@ router.get('/receipts/:id/export/half', (req, res) => {
   const r = one(req, 'SELECT * FROM receipts WHERE id = ?', [parseInt(req.params.id)]);
   if (!r) return res.status(404).json({ error: 'Tidak ditemukan' });
   const settings = tenantSettingsObject(req);
-  const { buildHalfA4 } = require('./pdf');
-  const doc = buildHalfA4(settings, r, tenantLogoPath(req));
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename="${r.receipt_number}-half.pdf"`);
-  doc.pipe(res);
-  doc.end();
+  sendPdf(res, r, settings, tenantLogoPath(req), { half: true });
+});
+
+// Dapatkan link PDF publik (dipakai tombol "Kirim via WA (PDF)")
+router.get('/receipts/:id/wa-pdf', (req, res) => {
+  const r = one(req, 'SELECT * FROM receipts WHERE id = ?', [parseInt(req.params.id)]);
+  if (!r) return res.status(404).json({ error: 'Tidak ditemukan' });
+  const size = req.query.size === 'half' ? 'half' : 'a4';
+  const k = pdfSign(req.tenantId, r.id);
+  res.json({ url: `/api/pdf/${req.tenantId}/${r.id}?k=${k}&size=${size}` });
+});
+
+// Link PDF publik (tanpa login) untuk dibuka pelanggan dari WhatsApp
+router.get('/pdf/:tid/:id', async (req, res) => {
+  const tid = req.params.tid;
+  const id = parseInt(req.params.id);
+  if (!pdfVerify(tid, id, req.query.k)) {
+    return res.status(403).json({ error: 'Link tidak valid' });
+  }
+  try {
+    const tenant = M.queryOne('SELECT * FROM tenants WHERE id = ?', [tid]);
+    if (!tenant) return res.status(404).json({ error: 'Tidak ditemukan' });
+    await ensureTenantDb(tenant);
+    const row = T.queryOne(tid, 'SELECT * FROM receipts WHERE id = ?', [id]);
+    if (!row) return res.status(404).json({ error: 'Tidak ditemukan' });
+    const so = tenantSettingsObjFromDb(tid);
+    sendPdf(res, row, so, tenantLogoPathFor(tid, so),
+      { half: req.query.size === 'half', disposition: 'inline' });
+  } catch (e) {
+    res.status(500).json({ error: 'Gagal membuat PDF' });
+  }
 });
 
 // ============================================================

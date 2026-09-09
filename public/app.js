@@ -191,6 +191,7 @@ async function loadReceipts() {
         <td>${r.customer_phone || '-'}</td>
         <td>${r.device_type} ${r.device_brand} ${r.device_model}</td>
         <td title="${escapeHtml(r.complaint)}">${truncate(r.complaint, 40)}</td>
+        <td title="${escapeHtml(r.notes || '')}">${truncate(r.notes || '-', 40)}</td>
         <td>${formatRupiah(r.estimated_cost)}</td>
         <td>${formatRupiah(r.down_payment)}</td>
         <td>${statusBadge(r.status)}</td>
@@ -439,6 +440,47 @@ function renderPrint() {
     content.innerHTML = renderHalfA4(r, remaining);
   } else {
     content.innerHTML = renderDotMatrix(r, remaining);
+  }
+}
+
+// Kirim tanda terima (PDF) via WhatsApp
+async function waPdfReceipt() {
+  if (!printData) return;
+  const size = document.getElementById('print-size').value === 'halfa4' ? 'half' : 'a4';
+  try {
+    const res = await fetch(`${API}/receipts/${printData.id}/wa-pdf?size=${size}`, {
+      headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+    });
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    const r = printData;
+    const url = location.origin + data.url;
+    const msg = `🧾 *Tanda Terima #${r.receipt_number}*\n\n`
+      + `Pelanggan: ${r.customer_name || '-'}\n`
+      + `Perangkat: ${[r.device_type, r.device_brand, r.device_model].filter(Boolean).join(' ') || '-'}\n`
+      + `Keluhan: ${r.complaint || '-'}\n`
+      + `Biaya: ${formatRupiah(r.estimated_cost)}\n`
+      + `Status: ${statusLabel(r.status)}\n\n`
+      + `📄 PDF tanda terima Anda (klik untuk membuka):\n${url}`;
+    const wa = waPhone(r.customer_phone);
+    if (wa) {
+      window.open(`https://wa.me/${wa}?text=${encodeURIComponent(msg)}`, '_blank');
+      showToast('WhatsApp dibuka dengan link PDF');
+    } else {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = url;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+      }
+      showToast('Pelanggan belum punya no. HP. Link PDF disalin.');
+    }
+  } catch (err) {
+    showToast('Gagal membuat PDF via WhatsApp', 'error');
   }
 }
 
@@ -805,7 +847,7 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     }
     setToken(data.token);
     if (data.username) localStorage.setItem('shop_user', data.username);
-    if (data.shopName) document.getElementById('nav-brand').innerHTML = '🔧 ' + data.shopName;
+    if (data.shopName) document.getElementById('nav-brand').textContent = data.shopName;
     hideLogin();
     showApp();
     if (data.subscription) renderSubBanner(data.subscription);
@@ -1074,7 +1116,7 @@ async function init() {
     const res = await fetch(`${API}/auth/check`);
     if (res.ok) {
       const data = await res.json();
-      if (data.shopName) document.getElementById('nav-brand').innerHTML = '🔧 ' + data.shopName;
+      if (data.shopName) document.getElementById('nav-brand').textContent = data.shopName;
       localStorage.setItem('shop_user', data.username || '');
       if (data.subscription) renderSubBanner(data.subscription);
       showApp();
