@@ -315,6 +315,16 @@ router.get('/sync/pull', (req, res) => {
   } else {
     rows = all(req, 'SELECT id, client_id, deleted, updated_at FROM receipts');
   }
+  // FIX sync: nota yang dibuat langsung lewat web tidak punya client_id sehingga
+  // tidak pernah turun ke EXE. Pastikan setiap baris punya client_id (backfill
+  // otomatis sekali), lalu kembalikan semuanya.
+  for (const r of rows) {
+    if (!r.client_id) {
+      const cid = crypto.randomUUID();
+      runq(req, 'UPDATE receipts SET client_id = ? WHERE id = ?', [cid, r.id]);
+      r.client_id = cid;
+    }
+  }
   res.json(rows.filter(r => r.client_id));
 });
 
@@ -447,6 +457,7 @@ router.get('/receipts/:id', (req, res) => {
 // Create receipt
 router.post('/receipts', (req, res) => {
   const receipt_number = generateReceiptNumber(req);
+  const client_id = crypto.randomUUID();
   const {
     customer_name, customer_phone, customer_address,
     device_type, device_brand, device_model, device_serial,
@@ -454,12 +465,12 @@ router.post('/receipts', (req, res) => {
   } = req.body;
 
   runq(req, `
-    INSERT INTO receipts (receipt_number, customer_name, customer_phone, customer_address,
+    INSERT INTO receipts (receipt_number, client_id, customer_name, customer_phone, customer_address,
       device_type, device_brand, device_model, device_serial, complaint, notes,
       estimated_cost, down_payment, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
-    receipt_number, customer_name, customer_phone || '', customer_address || '',
+    receipt_number, client_id, customer_name, customer_phone || '', customer_address || '',
     device_type || '', device_brand || '', device_model || '', device_serial || '',
     complaint || '', notes || '',
     estimated_cost || 0, down_payment || 0, status || 'diterima'
