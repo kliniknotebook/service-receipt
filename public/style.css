@@ -898,9 +898,26 @@ table.a4-sign-table {
 }
 
 @media (max-width: 640px) {
-  .navbar { padding: 0 12px; }
-  .nav-brand { font-size: 1rem; }
-  .nav-link { padding: 6px 10px; font-size: .8rem; }
+  .navbar {
+    padding: 8px 12px;
+    height: auto;
+    min-height: 56px;
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .nav-brand {
+    font-size: 1rem;
+    width: 100%;
+    text-align: center;
+  }
+  .nav-links {
+    flex-wrap: wrap;
+    width: 100%;
+    justify-content: center;
+    gap: 6px;
+    row-gap: 6px;
+  }
+  .nav-link { padding: 6px 12px; font-size: .8rem; }
   .container { padding: 16px; }
   .form-row { grid-template-columns: 1fr; }
   .form-row.three { grid-template-columns: 1fr; }
