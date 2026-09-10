@@ -14,7 +14,11 @@ function buildA4(settings, r, logoPath) {
 
   // Header
   if (logoPath) {
-    try { doc.image(logoPath, 40, doc.y, { width: 70 }); } catch (e) {}
+    try {
+      const img = doc.openImage(logoPath);
+      doc.image(logoPath, 40, doc.y, { width: 70 });
+      doc.y += 70 * (img.height / img.width);
+    } catch (e) {}
     doc.moveDown(0.5);
   }
   doc.fontSize(20).fillColor('#2563eb').text(settings.shop_name || 'Service Center', { align: 'left' });
@@ -116,7 +120,11 @@ function buildHalfA4(settings, r, logoPath) {
   const baseX = 25;
 
   if (logoPath) {
-    try { doc.image(logoPath, baseX, doc.y, { width: 40 }); } catch (e) {}
+    try {
+      const img = doc.openImage(logoPath);
+      doc.image(logoPath, baseX, doc.y, { width: 40 });
+      doc.y += 40 * (img.height / img.width);
+    } catch (e) {}
     doc.moveDown(0.5);
   }
   doc.fontSize(14).fillColor('#2563eb').text(settings.shop_name || 'Service Center');
