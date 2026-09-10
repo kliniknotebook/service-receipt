@@ -602,10 +602,11 @@ router.get('/stats', (req, res) => {
   const diproses = one(req, "SELECT COUNT(*) as count FROM receipts WHERE status='diproses'").count;
   const selesai = one(req, "SELECT COUNT(*) as count FROM receipts WHERE status='selesai'").count;
   const diambil = one(req, "SELECT COUNT(*) as count FROM receipts WHERE status='diambil'").count;
+  const batal = one(req, "SELECT COUNT(*) as count FROM receipts WHERE status='batal'").count;
   const todayRevenue = one(req,
-    "SELECT COALESCE(SUM(down_payment),0) as total FROM receipts WHERE date(created_at) = date('now','localtime')"
+    "SELECT COALESCE(SUM(down_payment),0) as total FROM receipts WHERE status != 'batal' AND date(created_at) = date('now','localtime')"
   ).total;
-  res.json({ total, diterima, diproses, selesai, diambil, todayRevenue });
+  res.json({ total, diterima, diproses, selesai, diambil, batal, todayRevenue });
 });
 
 // Report: revenue per period
@@ -618,13 +619,15 @@ router.get('/report', (req, res) => {
   if (to) { where += ' AND date(created_at) <= ?'; params.push(to); }
   if (status && status !== 'semua') { where += ' AND status = ?'; params.push(status); }
 
+  const revWhere = where + " AND status != 'batal'";
+
   const summary = one(req, `
     SELECT
-      COUNT(*) as count,
+      (SELECT COUNT(*) FROM receipts ${where}) as count,
       COALESCE(SUM(down_payment),0) as total_dp,
       COALESCE(SUM(estimated_cost),0) as total_estimate,
       COALESCE(SUM(estimated_cost),0) - COALESCE(SUM(down_payment),0) as total_remaining
-    FROM receipts ${where}
+    FROM receipts ${revWhere}
   `, params);
 
   let detail;
@@ -634,7 +637,7 @@ router.get('/report', (req, res) => {
         COUNT(*) as count,
         COALESCE(SUM(down_payment),0) as total_dp,
         COALESCE(SUM(estimated_cost),0) as total_estimate
-      FROM receipts ${where}
+      FROM receipts ${revWhere}
       GROUP BY date(created_at)
       ORDER BY tanggal DESC
     `, params);

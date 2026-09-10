@@ -181,6 +181,7 @@ tr:hover td { background: #f8fafc; }
 .status-diproses { background: #fef3c7; color: #92400e; }
 .status-selesai { background: #d1fae5; color: #065f46; }
 .status-diambil { background: #e2e8f0; color: #475569; }
+.status-batal { background: #fee2e2; color: #b91c1c; }
 
 .btn {
   padding: 10px 20px;

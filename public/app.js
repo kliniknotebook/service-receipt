@@ -95,7 +95,8 @@ function statusBadge(status) {
     diterima: 'Diterima',
     diproses: 'Diproses',
     selesai: 'Selesai',
-    diambil: 'Diambil'
+    diambil: 'Diambil',
+    batal: 'Batal'
   };
   return `<span class="status-badge status-${status}">${labels[status] || status}</span>`;
 }
@@ -133,6 +134,10 @@ async function loadDashboard() {
       <div class="stat-card green">
         <div class="stat-value">${stats.selesai}</div>
         <div class="stat-label">Selesai</div>
+      </div>
+      <div class="stat-card red">
+        <div class="stat-value">${stats.batal || 0}</div>
+        <div class="stat-label">Batal</div>
       </div>
       <div class="stat-card red">
         <div class="stat-value">${formatRupiah(stats.todayRevenue)}</div>

@@ -1,11 +1,11 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tanda Terima Service</title>
 <link rel="stylesheet" href="style.css?v=19">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔧</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>ðŸ”§</text></svg>">
 </head>
 <body>
   <nav class="navbar">
@@ -24,7 +24,7 @@
   <!-- Login Overlay -->
   <div class="login-overlay" id="login-overlay">
     <div class="login-card">
-      <div class="login-logo">🔧</div>
+      <div class="login-logo">ðŸ”§</div>
       <h2>Service Receipt</h2>
       <p class="login-sub">Masuk untuk mengelola tanda terima</p>
       <form id="login-form">
@@ -46,7 +46,7 @@
   <!-- Subscription Overlay -->
   <div class="login-overlay" id="sub-overlay" style="display:none">
     <div class="login-card" style="max-height:92vh;overflow:auto">
-      <div class="login-logo">🚧</div>
+      <div class="login-logo">ðŸš§</div>
       <h2 id="sub-title">Masa Langganan Habis</h2>
       <p id="sub-desc" class="login-sub"></p>
       <div id="sub-bank" class="sub-bank"></div>
@@ -108,6 +108,7 @@
           <option value="diproses">Diproses</option>
           <option value="selesai">Selesai</option>
           <option value="diambil">Diambil</option>
+          <option value="batal">Batal</option>
         </select>
       </div>
       <div class="table-wrapper">
@@ -152,6 +153,7 @@
               <option value="diproses">Diproses</option>
               <option value="selesai">Selesai</option>
               <option value="diambil">Diambil</option>
+              <option value="batal">Batal</option>
             </select>
           </div>
         </div>
@@ -317,6 +319,7 @@
               <option value="diproses">Diproses</option>
               <option value="selesai">Selesai</option>
               <option value="diambil">Diambil</option>
+              <option value="batal">Batal</option>
             </select>
           </div>
         </div>
@@ -340,13 +343,13 @@
           <option value="a4">A4 (Deskjet / Laserjet)</option>
         </select>
       </div>
-      <button class="btn btn-primary" onclick="window.print()">🖨️ Cetak</button>
-      <button class="btn btn-success" onclick="waPdfReceipt()">📄 Kirim WA (PDF)</button>
+      <button class="btn btn-primary" onclick="window.print()">ðŸ–¨ï¸ Cetak</button>
+      <button class="btn btn-success" onclick="waPdfReceipt()">ðŸ“„ Kirim WA (PDF)</button>
       <button class="btn btn-secondary" onclick="closePrint()">Tutup</button>
     </div>
     <div id="print-content"></div>
   </div>
 
-  <script src="app.js?v=11"></script>
+  <script src="app.js?v=12"></script>
 </body>
 </html>
