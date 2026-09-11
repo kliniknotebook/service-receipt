@@ -61,6 +61,12 @@
     .track-info div span:last-child { text-align: right; font-weight: 500; }
     .track-error { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; border-radius: 8px; padding: 12px 16px; font-size: .88rem; margin-bottom: 16px; display: none; }
     .track-error.open { display: block; }
+    .pay-warn {
+      margin-top: 10px; background: #fef2f2; border: 1px solid #fecaca;
+      color: #b91c1c; border-radius: 8px; padding: 8px 12px;
+      font-size: .82rem; font-weight: 600; text-align: center;
+    }
+    .pay-warn.pay-soon { background: #fffbeb; border-color: #fde68a; color: #92400e; }
     .track-links { text-align: center; margin-top: 20px; }
     .back-to-top { color: #64748b; font-size: .85rem; text-decoration: none; }
     .spinner { display: none; width: 22px; height: 22px; border: 3px solid #bfdbfe; border-top-color: #2563eb; border-radius: 50%; animation: spin .7s linear infinite; margin: 0 auto; }
@@ -111,9 +117,30 @@
       return (s || '').charAt(0).toUpperCase() + (s || '').slice(1);
     }
 
+    function fmtRp(v) {
+      const n = Number(v || 0);
+      return 'Rp ' + n.toLocaleString('id-ID');
+    }
+
     function fmtDue(s) {
       const p = String(s || '').split('-');
       return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : (s || '-');
+    }
+
+    function toISO(s) {
+      const p = String(s || '').split('/');
+      if (p.length === 3 && p[2].length === 4) return `${p[2]}-${p[1]}-${p[0]}`;
+      return String(s || '');
+    }
+
+    function dueInfo(due) {
+      const iso = toISO(due);
+      if (!iso) return { overdue: false, days: 0 };
+      const today = new Date();
+      const tISO = today.toISOString().slice(0, 10);
+      const dueD = new Date(iso + 'T00:00:00');
+      const ms = dueD - new Date(tISO + 'T00:00:00');
+      return { overdue: iso < tISO, days: Math.round(ms / 86400000) };
     }
 
     function trackPay(d) {
@@ -121,6 +148,14 @@
       if (ps === 'hutang') return 'Hutang' + (d.due_date ? ' · jatuh tempo ' + fmtDue(d.due_date) : '');
       if (ps === 'cash') return 'Cash';
       return 'Kosong';
+    }
+
+    function payWarn(d) {
+      if (d.payment_status !== 'hutang') return '';
+      const info = dueInfo(d.due_date);
+      if (info.overdue) return '<div class="pay-warn">⚠ Sudah lewat jatuh tempo ' + fmtDue(d.due_date) + '. Mohon segera melunasi pembayaran.</div>';
+      if (info.days >= 0 && info.days <= 1) return '<div class="pay-warn pay-soon">❗ Jatuh tempo ' + fmtDue(d.due_date) + ' (tinggal ' + info.days + ' hari lagi). Mohon segera melunasi.</div>';
+      return '';
     }
 
     function renderResult(d) {
@@ -147,10 +182,14 @@
           <div><span>Nama</span><span>${d.customer_name || '-'}</span></div>
           <div><span>Device</span><span>${[d.device_type, d.device_brand, d.device_model].filter(Boolean).join(' ') || '-'}</span></div>
           <div><span>Keluhan</span><span>${d.complaint || '-'}</span></div>
+          <div><span>Biaya Estimasi</span><span>${fmtRp(d.estimated_cost)}</span></div>
+          <div><span>Uang Muka (DP)</span><span>${fmtRp(d.down_payment)}</span></div>
+          <div><span>Sisa Bayar</span><span>${fmtRp((d.estimated_cost || 0) - (d.down_payment || 0))}</span></div>
           <div><span>Pembayaran</span><span>${trackPay(d)}</span></div>
           <div><span>Diterima</span><span>${(d.created_at || '').slice(0, 16)}</span></div>
           ${d.updated_at && d.status !== 'diterima' ? `<div><span>Update</span><span>${(d.updated_at || '').slice(0, 16)}</span></div>` : ''}
         </div>
+        ${payWarn(d)}
         <div class="track-timeline">${timeline}</div>`;
       document.getElementById('track-result').classList.add('open');
     }

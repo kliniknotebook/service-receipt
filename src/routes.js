@@ -327,8 +327,8 @@ router.get('/public/track', async (req, res) => {
 
   const row = T.queryOne(tenant.id,
     `SELECT receipt_number, customer_name, customer_phone, device_type,
-       device_brand, device_model, complaint, status, payment_status, due_date,
-       created_at, updated_at
+       device_brand, device_model, complaint, estimated_cost, down_payment,
+       status, payment_status, due_date, created_at, updated_at
      FROM receipts WHERE receipt_number = ? AND customer_phone = ?`,
     [no.trim(), hp.trim()]
   );
