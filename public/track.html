@@ -135,6 +135,7 @@
           <div><span>Nama</span><span>${d.customer_name || '-'}</span></div>
           <div><span>Device</span><span>${[d.device_type, d.device_brand, d.device_model].filter(Boolean).join(' ') || '-'}</span></div>
           <div><span>Keluhan</span><span>${d.complaint || '-'}</span></div>
+          <div><span>Pembayaran</span><span>${(d.payment_status || 'cash') === 'hutang' ? 'Hutang' + (d.due_date ? ' · jatuh tempo ' + d.due_date : '') : 'Cash'}</span></div>
           <div><span>Diterima</span><span>${(d.created_at || '').slice(0, 16)}</span></div>
           ${d.updated_at && d.status !== 'diterima' ? `<div><span>Update</span><span>${(d.updated_at || '').slice(0, 16)}</span></div>` : ''}
         </div>

@@ -46,6 +46,8 @@ function notifyWrite(tenantId) {
 }
 
 async function init(tenant) {
+  const cached = cache.get(tenant.id);
+  if (cached) return cached;
   await ensureSQL();
   const dbPath = tenantDbPath(tenant.id);
   const existing = fs.existsSync(dbPath) ? new Uint8Array(fs.readFileSync(dbPath)) : null;
@@ -68,6 +70,8 @@ async function init(tenant) {
       estimated_cost INTEGER DEFAULT 0,
       down_payment INTEGER DEFAULT 0,
       status TEXT DEFAULT 'diterima',
+      payment_status TEXT DEFAULT 'cash',
+      due_date TEXT,
       created_at TEXT DEFAULT (datetime('now','localtime')),
       updated_at TEXT DEFAULT (datetime('now','localtime')),
       client_id TEXT,
@@ -85,6 +89,9 @@ async function init(tenant) {
   const cols = db.exec('PRAGMA table_info(receipts)')[0]?.values.map(r => r[1]) || [];
   if (!cols.includes('client_id')) db.run('ALTER TABLE receipts ADD COLUMN client_id TEXT');
   if (!cols.includes('deleted')) db.run('ALTER TABLE receipts ADD COLUMN deleted INTEGER DEFAULT 0');
+  // Migrasi pembayaran
+  if (!cols.includes('payment_status')) db.run("ALTER TABLE receipts ADD COLUMN payment_status TEXT DEFAULT 'cash'");
+  if (!cols.includes('due_date')) db.run('ALTER TABLE receipts ADD COLUMN due_date TEXT');
 
   const defaults = {
     shop_name: tenant.shop_name || 'Service Center',

@@ -101,6 +101,27 @@ function statusBadge(status) {
   return `<span class="status-badge status-${status}">${labels[status] || status}</span>`;
 }
 
+function fmtDateStr(s) {
+  if (!s) return '';
+  const p = String(s).split('-');
+  if (p.length !== 3) return s;
+  return `${p[2]}/${p[1]}/${p[0]}`;
+}
+
+function payText(r) {
+  if ((r.payment_status || 'cash') === 'hutang') {
+    return 'Hutang' + (r.due_date ? ' · jatuh tempo ' + fmtDateStr(r.due_date) : '');
+  }
+  return 'Cash';
+}
+
+function paymentBadge(r) {
+  if ((r.payment_status || 'cash') === 'hutang') {
+    return `<span class="pay-badge pay-hutang">Hutang${r.due_date ? ' · ' + fmtDateStr(r.due_date) : ''}</span>`;
+  }
+  return `<span class="pay-badge pay-cash">Cash</span>`;
+}
+
 // Toast notification
 function showToast(msg, type = 'success') {
   const t = document.createElement('div');
@@ -138,6 +159,10 @@ async function loadDashboard() {
       <div class="stat-card red">
         <div class="stat-value">${stats.batal || 0}</div>
         <div class="stat-label">Batal</div>
+      </div>
+      <div class="stat-card orange">
+        <div class="stat-value">${stats.hutang || 0}</div>
+        <div class="stat-label">Hutang</div>
       </div>
       <div class="stat-card red">
         <div class="stat-value">${formatRupiah(stats.todayRevenue)}</div>
@@ -185,7 +210,7 @@ async function loadReceipts() {
     const tbody = document.querySelector('#receipts-table tbody');
 
     if (receipts.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="9" class="empty-state"><div class="empty-icon">📋</div><p>Tidak ada data ditemukan</p></td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="11" class="empty-state"><div class="empty-icon">📋</div><p>Tidak ada data ditemukan</p></td></tr>`;
       return;
     }
 
@@ -199,6 +224,7 @@ async function loadReceipts() {
         <td title="${escapeHtml(r.notes || '')}">${truncate(r.notes || '-', 40)}</td>
         <td>${formatRupiah(r.estimated_cost)}</td>
         <td>${formatRupiah(r.down_payment)}</td>
+        <td>${paymentBadge(r)}</td>
         <td>${statusBadge(r.status)}</td>
         <td>
           <div class="btn-group">
@@ -279,10 +305,14 @@ function openModal(data = null) {
     document.getElementById('f-estimated_cost').value = numId(data.estimated_cost);
     document.getElementById('f-down_payment').value = numId(data.down_payment);
     document.getElementById('f-status').value = data.status || 'diterima';
+    document.getElementById('f-payment_status').value = data.payment_status || 'cash';
+    document.getElementById('f-due_date').value = data.due_date || '';
   } else {
     document.getElementById('modal-title').textContent = 'Tanda Terima Baru';
     document.getElementById('f-receipt_number').value = '(auto)';
     document.getElementById('f-date').value = new Date().toLocaleDateString('id-ID');
+    document.getElementById('f-payment_status').value = 'cash';
+    document.getElementById('f-due_date').value = '';
   }
 }
 
@@ -317,6 +347,15 @@ document.getElementById('receipt-form').addEventListener('submit', async (e) => 
     down_payment: parseRupiah(document.getElementById('f-down_payment').value),
     status: document.getElementById('f-status').value
   };
+
+  const payStatus = document.getElementById('f-payment_status').value;
+  const dueDate = document.getElementById('f-due_date').value;
+  if (payStatus === 'hutang' && !dueDate) {
+    showToast('Tanggal jatuh tempo wajib diisi untuk status Hutang', 'error');
+    return;
+  }
+  body.payment_status = payStatus;
+  body.due_date = payStatus === 'hutang' ? dueDate : '';
 
   try {
     const url = id ? `${API}/receipts/${id}` : `${API}/receipts`;
@@ -465,7 +504,8 @@ async function waPdfReceipt() {
       + `Perangkat: ${[r.device_type, r.device_brand, r.device_model].filter(Boolean).join(' ') || '-'}\n`
       + `Keluhan: ${r.complaint || '-'}\n`
       + `Biaya: ${formatRupiah(r.estimated_cost)}\n`
-      + `Status: ${statusLabel(r.status)}\n\n`
+      + `Status: ${statusLabel(r.status)}\n`
+      + `Pembayaran: ${payText(r)}\n\n`
       + `📄 PDF tanda terima Anda (klik untuk membuka):\n${url}`;
     const wa = waPhone(r.customer_phone);
     if (wa) {
@@ -539,6 +579,10 @@ function renderDotMatrix(r, remaining) {
     <div class="receipt-row">
       <span>Status</span>
       <span class="receipt-bold">${statusLabel(r.status)}</span>
+    </div>
+    <div class="receipt-row">
+      <span>Pembayaran</span>
+      <span class="receipt-bold">${payText(r)}</span>
     </div>
 
     <hr class="receipt-divider">
@@ -624,6 +668,10 @@ function renderA4(r, remaining) {
       <p>Status: <b>${statusLabel(r.status)}</b></p>
     </div>
 
+    <div class="a4-status">
+      <p>Pembayaran: <b>${payText(r)}</b></p>
+    </div>
+
     <table class="a4-sign-table">
       <tr class="a4-sign-label">
         <td><span>Petugas / Teknisi</span></td>
@@ -707,6 +755,10 @@ function renderHalfA4(r, remaining) {
 
     <div class="a4-status">
       <p>Status: <b>${statusLabel(r.status)}</b></p>
+    </div>
+
+    <div class="a4-status">
+      <p>Pembayaran: <b>${payText(r)}</b></p>
     </div>
 
     <table class="a4-sign-table">
@@ -1089,9 +1141,9 @@ async function loadReport() {
         </tr>
       `).join('');
     } else {
-      thead.innerHTML = '<tr><th>No. Receipt</th><th>Pelanggan</th><th>Tanggal</th><th>Estimasi</th><th>DP</th><th>Status</th></tr>';
+      thead.innerHTML = '<tr><th>No. Receipt</th><th>Pelanggan</th><th>Tanggal</th><th>Estimasi</th><th>DP</th><th>Pembayaran</th><th>Status</th></tr>';
       if (data.detail.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><p>Tidak ada data</p></td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><p>Tidak ada data</p></td></tr>';
         return;
       }
       tbody.innerHTML = data.detail.map(r => `
@@ -1101,6 +1153,7 @@ async function loadReport() {
           <td>${formatDate(r.created_at)}</td>
           <td>${formatRupiah(r.estimated_cost)}</td>
           <td>${formatRupiah(r.down_payment)}</td>
+          <td>${paymentBadge(r)}</td>
           <td>${statusBadge(r.status)}</td>
         </tr>
       `).join('');

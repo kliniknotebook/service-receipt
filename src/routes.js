@@ -318,7 +318,8 @@ router.get('/public/track', async (req, res) => {
 
   const row = T.queryOne(tenant.id,
     `SELECT receipt_number, customer_name, customer_phone, device_type,
-       device_brand, device_model, complaint, status, created_at, updated_at
+       device_brand, device_model, complaint, status, payment_status, due_date,
+       created_at, updated_at
      FROM receipts WHERE receipt_number = ? AND customer_phone = ?`,
     [no.trim(), hp.trim()]
   );
@@ -382,12 +383,14 @@ router.post('/sync/push', (req, res) => {
             customer_name = ?, customer_phone = ?, customer_address = ?,
             device_type = ?, device_brand = ?, device_model = ?, device_serial = ?,
             complaint = ?, notes = ?, estimated_cost = ?, down_payment = ?,
-            status = ?, deleted = 0, updated_at = datetime('now','localtime')
+            status = ?, payment_status = ?, due_date = ?, deleted = 0, updated_at = datetime('now','localtime')
           WHERE client_id = ?`, [
           d.customer_name || '', d.customer_phone || '', d.customer_address || '',
           d.device_type || '', d.device_brand || '', d.device_model || '', d.device_serial || '',
           d.complaint || '', d.notes || '',
-          d.estimated_cost || 0, d.down_payment || 0, d.status || 'diterima', c.client_id
+          d.estimated_cost || 0, d.down_payment || 0, d.status || 'diterima',
+          d.payment_status === 'hutang' ? 'hutang' : 'cash', d.payment_status === 'hutang' ? (d.due_date || '') : '',
+          c.client_id
         ]);
       } else {
         const rnum = d.receipt_number || `SRI-${Date.now()}-${Math.floor(Math.random()*10000)}`;
@@ -402,6 +405,7 @@ router.post('/sync/push', (req, res) => {
               device_type = ?, device_brand = ?, device_model = ?, device_serial = ?,
               complaint = ?, notes = ?,
               estimated_cost = ?, down_payment = ?, status = ?,
+              payment_status = ?, due_date = ?,
               updated_at = datetime('now','localtime')
             WHERE id = ?`, [
             c.client_id,
@@ -409,19 +413,21 @@ router.post('/sync/push', (req, res) => {
             d.device_type || '', d.device_brand || '', d.device_model || '', d.device_serial || '',
             d.complaint || '', d.notes || '',
             d.estimated_cost || 0, d.down_payment || 0, d.status || 'diterima',
+            d.payment_status === 'hutang' ? 'hutang' : 'cash', d.payment_status === 'hutang' ? (d.due_date || '') : '',
             existing.id
           ]);
         } else {
           runq(req, `INSERT INTO receipts
             (receipt_number, client_id, customer_name, customer_phone, customer_address,
              device_type, device_brand, device_model, device_serial, complaint, notes,
-             estimated_cost, down_payment, status)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+             estimated_cost, down_payment, status, payment_status, due_date)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
             rnum, c.client_id,
             d.customer_name || '', d.customer_phone || '', d.customer_address || '',
             d.device_type || '', d.device_brand || '', d.device_model || '', d.device_serial || '',
             d.complaint || '', d.notes || '',
-            d.estimated_cost || 0, d.down_payment || 0, d.status || 'diterima'
+            d.estimated_cost || 0, d.down_payment || 0, d.status || 'diterima',
+            d.payment_status === 'hutang' ? 'hutang' : 'cash', d.payment_status === 'hutang' ? (d.due_date || '') : ''
           ]);
         }
       }
@@ -498,19 +504,26 @@ router.post('/receipts', (req, res) => {
   const {
     customer_name, customer_phone, customer_address,
     device_type, device_brand, device_model, device_serial,
-    complaint, notes, estimated_cost, down_payment, status
+    complaint, notes, estimated_cost, down_payment, status,
+    payment_status, due_date
   } = req.body;
+
+  const payStatus = payment_status === 'hutang' ? 'hutang' : 'cash';
+  if (payStatus === 'hutang' && !due_date) {
+    return res.status(400).json({ error: 'Tanggal jatuh tempo wajib diisi untuk status Hutang' });
+  }
+  const dd = payStatus === 'hutang' ? String(due_date) : '';
 
   runq(req, `
     INSERT INTO receipts (receipt_number, client_id, customer_name, customer_phone, customer_address,
       device_type, device_brand, device_model, device_serial, complaint, notes,
-      estimated_cost, down_payment, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      estimated_cost, down_payment, status, payment_status, due_date)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     receipt_number, client_id, customer_name, customer_phone || '', customer_address || '',
     device_type || '', device_brand || '', device_model || '', device_serial || '',
     complaint || '', notes || '',
-    estimated_cost || 0, down_payment || 0, status || 'diterima'
+    estimated_cost || 0, down_payment || 0, status || 'diterima', payStatus, dd
   ]);
 
   const row = one(req, 'SELECT * FROM receipts WHERE receipt_number = ?', [receipt_number]);
@@ -522,21 +535,28 @@ router.put('/receipts/:id', (req, res) => {
   const {
     customer_name, customer_phone, customer_address,
     device_type, device_brand, device_model, device_serial,
-    complaint, notes, estimated_cost, down_payment, status
+    complaint, notes, estimated_cost, down_payment, status,
+    payment_status, due_date
   } = req.body;
+
+  const payStatus = payment_status === 'hutang' ? 'hutang' : 'cash';
+  if (payStatus === 'hutang' && !due_date) {
+    return res.status(400).json({ error: 'Tanggal jatuh tempo wajib diisi untuk status Hutang' });
+  }
+  const dd = payStatus === 'hutang' ? String(due_date) : '';
 
   runq(req, `
     UPDATE receipts SET
       customer_name = ?, customer_phone = ?, customer_address = ?,
       device_type = ?, device_brand = ?, device_model = ?, device_serial = ?,
       complaint = ?, notes = ?, estimated_cost = ?, down_payment = ?,
-      status = ?, updated_at = datetime('now','localtime')
+      status = ?, payment_status = ?, due_date = ?, updated_at = datetime('now','localtime')
     WHERE id = ?
   `, [
     customer_name || '', customer_phone || '', customer_address || '',
     device_type || '', device_brand || '', device_model || '', device_serial || '',
     complaint || '', notes || '',
-    estimated_cost || 0, down_payment || 0, status || 'diterima',
+    estimated_cost || 0, down_payment || 0, status || 'diterima', payStatus, dd,
     parseInt(req.params.id)
   ]);
 
@@ -603,10 +623,11 @@ router.get('/stats', (req, res) => {
   const selesai = one(req, "SELECT COUNT(*) as count FROM receipts WHERE status='selesai'").count;
   const diambil = one(req, "SELECT COUNT(*) as count FROM receipts WHERE status='diambil'").count;
   const batal = one(req, "SELECT COUNT(*) as count FROM receipts WHERE status='batal'").count;
+  const hutang = one(req, "SELECT COUNT(*) as count FROM receipts WHERE payment_status='hutang' AND status != 'batal'").count;
   const todayRevenue = one(req,
     "SELECT COALESCE(SUM(down_payment),0) as total FROM receipts WHERE status != 'batal' AND date(created_at) = date('now','localtime')"
   ).total;
-  res.json({ total, diterima, diproses, selesai, diambil, batal, todayRevenue });
+  res.json({ total, diterima, diproses, selesai, diambil, batal, hutang, todayRevenue });
 });
 
 // Report: revenue per period
