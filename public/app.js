@@ -108,18 +108,32 @@ function fmtDateStr(s) {
   return `${p[2]}/${p[1]}/${p[0]}`;
 }
 
+function todayISO() {
+  const d = new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+
+function isOverdue(r) {
+  return r.payment_status === 'hutang' && !!r.due_date && String(r.due_date) <= todayISO();
+}
+
 function payText(r) {
-  if ((r.payment_status || 'cash') === 'hutang') {
+  const ps = r.payment_status || '';
+  if (ps === 'hutang') {
     return 'Hutang' + (r.due_date ? ' · jatuh tempo ' + fmtDateStr(r.due_date) : '');
   }
-  return 'Cash';
+  if (ps === 'cash') return 'Cash';
+  return 'Kosong';
 }
 
 function paymentBadge(r) {
-  if ((r.payment_status || 'cash') === 'hutang') {
-    return `<span class="pay-badge pay-hutang">Hutang${r.due_date ? ' · ' + fmtDateStr(r.due_date) : ''}</span>`;
+  const ps = r.payment_status || '';
+  if (ps === 'hutang') {
+    const overdue = isOverdue(r);
+    return `<span class="pay-badge pay-hutang${overdue ? ' pay-due' : ''}">Hutang${r.due_date ? ' · ' + fmtDateStr(r.due_date) : ''}${overdue ? ' ⚠' : ''}</span>`;
   }
-  return `<span class="pay-badge pay-cash">Cash</span>`;
+  if (ps === 'cash') return `<span class="pay-badge pay-cash">Cash</span>`;
+  return `<span class="pay-badge pay-none">Kosong</span>`;
 }
 
 // Toast notification
@@ -171,6 +185,19 @@ async function loadDashboard() {
     `;
 
     const tbody = document.querySelector('#recent-table tbody');
+
+    const dueList = (receipts || []).filter(isOverdue);
+    const banner = document.getElementById('due-banner');
+    if (dueList.length) {
+      banner.innerHTML = `<strong>⚠ ${dueList.length} tanda terima hutang sudah jatuh tempo:</strong>` +
+        `<ul>${dueList.slice(0, 5).map(r =>
+          `<li>${r.receipt_number} — ${escapeHtml(r.customer_name || '')} (jatuh tempo ${fmtDateStr(r.due_date)})</li>`
+        ).join('')}${dueList.length > 5 ? `<li>…dan ${dueList.length - 5} lainnya</li>` : ''}</ul>`;
+      banner.style.display = 'block';
+    } else {
+      banner.style.display = 'none';
+    }
+
     if (receipts.length === 0) {
       tbody.innerHTML = `<tr><td colspan="5" class="empty-state"><div class="empty-icon">📋</div><p>Belum ada tanda terima</p></td></tr>`;
       return;
@@ -305,13 +332,13 @@ function openModal(data = null) {
     document.getElementById('f-estimated_cost').value = numId(data.estimated_cost);
     document.getElementById('f-down_payment').value = numId(data.down_payment);
     document.getElementById('f-status').value = data.status || 'diterima';
-    document.getElementById('f-payment_status').value = data.payment_status || 'cash';
+    document.getElementById('f-payment_status').value = data.payment_status || '';
     document.getElementById('f-due_date').value = data.due_date || '';
   } else {
     document.getElementById('modal-title').textContent = 'Tanda Terima Baru';
     document.getElementById('f-receipt_number').value = '(auto)';
     document.getElementById('f-date').value = new Date().toLocaleDateString('id-ID');
-    document.getElementById('f-payment_status').value = 'cash';
+    document.getElementById('f-payment_status').value = '';
     document.getElementById('f-due_date').value = '';
   }
 }

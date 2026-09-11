@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tanda Terima Service</title>
-  <link rel="stylesheet" href="style.css?v=20">
+  <link rel="stylesheet" href="style.css?v=21">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔧</text></svg>">
 </head>
 <body>
@@ -74,6 +74,7 @@
     <!-- Dashboard -->
     <section id="page-dashboard" class="page active">
       <h2>Dashboard</h2>
+      <div id="due-banner" class="due-banner" style="display:none"></div>
       <div class="stats-grid" id="stats-grid"></div>
       <div class="section-header">
         <h3>Terbaru</h3>
@@ -328,6 +329,7 @@
           <div class="form-group">
             <label>Status Pembayaran</label>
             <select id="f-payment_status">
+              <option value="">Kosong</option>
               <option value="cash">Cash</option>
               <option value="hutang">Hutang</option>
             </select>
@@ -364,6 +366,6 @@
     <div id="print-content"></div>
   </div>
 
-  <script src="app.js?v=13"></script>
+  <script src="app.js?v=14"></script>
 </body>
 </html>

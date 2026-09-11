@@ -92,9 +92,9 @@ function buildA4(settings, r, logoPath) {
   doc.fontSize(12).fillColor('#000').text('Sisa Bayar       : ' + formatRupiah(remaining));
   doc.moveDown(0.5);
   doc.text('Status: ' + statusLabel(r.status));
-  const payText = (r.payment_status || 'cash') === 'hutang'
-    ? 'Hutang' + (r.due_date ? ' (jatuh tempo ' + r.due_date + ')' : '')
-    : 'Cash';
+const payText = (r.payment_status || '') === 'hutang'
+  ? 'Hutang' + (r.due_date ? ' (jatuh tempo ' + r.due_date + ')' : '')
+  : (r.payment_status || '') === 'cash' ? 'Cash' : 'Kosong';
   doc.text('Bayar  : ' + payText);
   doc.moveDown(1.5);
 
@@ -189,9 +189,9 @@ function buildHalfA4(settings, r, logoPath) {
   doc.text('DP      : ' + formatRupiah(r.down_payment));
   doc.text('Sisa    : ' + formatRupiah(remaining));
   doc.text('Status  : ' + statusLabel(r.status));
-  const payTextHalf = (r.payment_status || 'cash') === 'hutang'
-    ? 'Hutang' + (r.due_date ? ' (jatuh tempo ' + r.due_date + ')' : '')
-    : 'Cash';
+const payTextHalf = (r.payment_status || '') === 'hutang'
+  ? 'Hutang' + (r.due_date ? ' (jatuh tempo ' + r.due_date + ')' : '')
+  : (r.payment_status || '') === 'cash' ? 'Cash' : 'Kosong';
   doc.text('Bayar   : ' + payTextHalf);
   doc.moveDown(1.2);
 

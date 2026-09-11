@@ -12,6 +12,15 @@ const adminTokens = new Map();    // token -> timestamp
 const DAYS_PER_PAYMENT = 30;      // 1 bulan per pembayaran
 
 // ---------- helpers ----------
+// Status pembayaran: '' (Kosong), 'cash', 'hutang'. Default baru = '' (belum dipastikan).
+function paymentStatusTo(v) {
+  return v === 'hutang' || v === 'cash' || v === '' ? v : 'cash';
+}
+
+function dueDateTo(ps, dd) {
+  return ps === 'hutang' ? String(dd || '') : '';
+}
+
 function bearer(req) {
   const auth = req.headers.authorization || '';
   return auth.replace(/^Bearer\s+/i, '');
@@ -377,6 +386,8 @@ router.post('/sync/push', (req, res) => {
       runq(req, "UPDATE receipts SET deleted = 1, updated_at = datetime('now','localtime') WHERE client_id = ?", [c.client_id]);
     } else {
       const d = c.data || {};
+      const ps = paymentStatusTo(d.payment_status);
+      const dd = dueDateTo(ps, d.due_date);
       const exist = one(req, 'SELECT id FROM receipts WHERE client_id = ?', [c.client_id]);
       if (exist) {
         runq(req, `UPDATE receipts SET
@@ -389,7 +400,7 @@ router.post('/sync/push', (req, res) => {
           d.device_type || '', d.device_brand || '', d.device_model || '', d.device_serial || '',
           d.complaint || '', d.notes || '',
           d.estimated_cost || 0, d.down_payment || 0, d.status || 'diterima',
-          d.payment_status === 'hutang' ? 'hutang' : 'cash', d.payment_status === 'hutang' ? (d.due_date || '') : '',
+          ps, dd,
           c.client_id
         ]);
       } else {
@@ -413,7 +424,7 @@ router.post('/sync/push', (req, res) => {
             d.device_type || '', d.device_brand || '', d.device_model || '', d.device_serial || '',
             d.complaint || '', d.notes || '',
             d.estimated_cost || 0, d.down_payment || 0, d.status || 'diterima',
-            d.payment_status === 'hutang' ? 'hutang' : 'cash', d.payment_status === 'hutang' ? (d.due_date || '') : '',
+            ps, dd,
             existing.id
           ]);
         } else {
@@ -427,7 +438,7 @@ router.post('/sync/push', (req, res) => {
             d.device_type || '', d.device_brand || '', d.device_model || '', d.device_serial || '',
             d.complaint || '', d.notes || '',
             d.estimated_cost || 0, d.down_payment || 0, d.status || 'diterima',
-            d.payment_status === 'hutang' ? 'hutang' : 'cash', d.payment_status === 'hutang' ? (d.due_date || '') : ''
+            ps, dd
           ]);
         }
       }
@@ -508,11 +519,11 @@ router.post('/receipts', (req, res) => {
     payment_status, due_date
   } = req.body;
 
-  const payStatus = payment_status === 'hutang' ? 'hutang' : 'cash';
+  const payStatus = paymentStatusTo(payment_status);
   if (payStatus === 'hutang' && !due_date) {
     return res.status(400).json({ error: 'Tanggal jatuh tempo wajib diisi untuk status Hutang' });
   }
-  const dd = payStatus === 'hutang' ? String(due_date) : '';
+  const dd = dueDateTo(payStatus, due_date);
 
   runq(req, `
     INSERT INTO receipts (receipt_number, client_id, customer_name, customer_phone, customer_address,
@@ -539,11 +550,11 @@ router.put('/receipts/:id', (req, res) => {
     payment_status, due_date
   } = req.body;
 
-  const payStatus = payment_status === 'hutang' ? 'hutang' : 'cash';
+  const payStatus = paymentStatusTo(payment_status);
   if (payStatus === 'hutang' && !due_date) {
     return res.status(400).json({ error: 'Tanggal jatuh tempo wajib diisi untuk status Hutang' });
   }
-  const dd = payStatus === 'hutang' ? String(due_date) : '';
+  const dd = dueDateTo(payStatus, due_date);
 
   runq(req, `
     UPDATE receipts SET
@@ -624,10 +635,11 @@ router.get('/stats', (req, res) => {
   const diambil = one(req, "SELECT COUNT(*) as count FROM receipts WHERE status='diambil'").count;
   const batal = one(req, "SELECT COUNT(*) as count FROM receipts WHERE status='batal'").count;
   const hutang = one(req, "SELECT COUNT(*) as count FROM receipts WHERE payment_status='hutang' AND status != 'batal'").count;
+  const dueCount = one(req, "SELECT COUNT(*) as count FROM receipts WHERE payment_status='hutang' AND status != 'batal' AND due_date != '' AND due_date <= date('now','localtime')").count;
   const todayRevenue = one(req,
     "SELECT COALESCE(SUM(down_payment),0) as total FROM receipts WHERE status != 'batal' AND date(created_at) = date('now','localtime')"
   ).total;
-  res.json({ total, diterima, diproses, selesai, diambil, batal, hutang, todayRevenue });
+  res.json({ total, diterima, diproses, selesai, diambil, batal, hutang, dueCount, todayRevenue });
 });
 
 // Report: revenue per period
