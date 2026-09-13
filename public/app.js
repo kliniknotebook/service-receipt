@@ -360,6 +360,8 @@ async function editReceipt(id) {
 }
 
 // Save form
+document.getElementById('notif-close').addEventListener('click', closeStatusNotif);
+
 document.getElementById('receipt-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const id = document.getElementById('f-id').value;
@@ -387,10 +389,7 @@ document.getElementById('receipt-form').addEventListener('submit', async (e) => 
   body.payment_status = payStatus;
   body.due_date = payStatus === 'hutang' ? dueDate : '';
 
-  // Buka jendela kosong SEKARANG (masih dalam user gesture) supaya popup
-  // WhatsApp tidak diblokir browser nantinya. Diisi alamatnya setelah simpan.
   const notifyNeeded = !id || (editingPrevStatus !== null && body.status !== editingPrevStatus);
-  let notifWin = notifyNeeded ? window.open('', '_blank') : null;
 
   try {
     const url = id ? `${API}/receipts/${id}` : `${API}/receipts`;
@@ -407,7 +406,8 @@ document.getElementById('receipt-form').addEventListener('submit', async (e) => 
     showToast(id ? 'Tanda terima berhasil diupdate' : 'Tanda terima berhasil dibuat');
 
     // Notifikasi: muncul untuk data BARU dan saat status BERUBAH pada edit.
-    // Pakai nilai asli (sebelum form di-reset) — utk baru ambil dari respons POST.
+    // Konfirmasi memakai panel di dalam halaman (bukan window.open),
+    // jadi tidak pernah diblokir popup blocker.
     if (notifyNeeded) {
       const info = saved || {
         receipt_number: document.getElementById('f-receipt_number').value,
@@ -416,8 +416,7 @@ document.getElementById('receipt-form').addEventListener('submit', async (e) => 
         device_brand: document.getElementById('f-device_brand').value,
         device_model: document.getElementById('f-device_model').value
       };
-      maybeStatusNotif(body.status, info, notifWin);
-      notifWin = null;
+      maybeStatusNotif(body.status, info);
       editingPrevStatus = null;
     }
 
@@ -431,7 +430,6 @@ document.getElementById('receipt-form').addEventListener('submit', async (e) => 
     if (currentPage === 'receipts') loadReceipts();
     else if (currentPage === 'dashboard') loadDashboard();
   } catch (err) {
-    if (notifWin) { try { notifWin.close(); } catch (e) {} }
     showToast('Gagal menyimpan data', 'error');
   }
 });
@@ -451,8 +449,8 @@ function statusNotifMsg(status, receiptNumber, device) {
     `Terima kasih🙏`;
 }
 
-// Konfirmasi dulu, baru buka WhatsApp (opsi b)
-function maybeStatusNotif(status, info, win) {
+// Konfirmasi notifikasi memakai panel di dalam halaman (tidak diblokir browser).
+function maybeStatusNotif(status, info) {
   const d = info || {};
   const receiptNumber = d.receipt_number || document.getElementById('f-receipt_number').value;
   const phone = d.customer_phone || document.getElementById('f-customer_phone').value;
@@ -461,34 +459,42 @@ function maybeStatusNotif(status, info, win) {
                    d.device_model || document.getElementById('f-device_model').value])
                  .filter(Boolean).join(' ');
   const msg = statusNotifMsg(status, receiptNumber, device);
+
+  const overlay = document.getElementById('notif-overlay');
+  document.getElementById('notif-msg').textContent = msg;
+
   const wa = waPhone(phone);
-  const closeWin = function (w) { if (w) { try { w.close(); } catch (e) {} } };
+  const btnSend = document.getElementById('notif-send');
+  const btnCopy = document.getElementById('notif-copy');
   if (wa) {
-    if (!confirm('🔔 Kirim notifikasi status ke pelanggan?\n\n' + msg + '\n\n(WhatsApp akan terbuka — tinggal tekan Kirim)')) {
-      closeWin(win);
-      return;
-    }
-    const url = 'https://wa.me/' + wa + '?text=' + encodeURIComponent(msg);
-    if (win) {
-      win.location.href = url;
-    } else {
-      window.open(url, '_blank');
-    }
+    btnSend.style.display = '';
+    btnCopy.style.display = 'none';
+    btnSend.onclick = function () {
+      overlay.style.display = 'none';
+      window.open('https://wa.me/' + wa + '?text=' + encodeURIComponent(msg), '_blank');
+    };
   } else {
-    closeWin(win);
-    if (!confirm('Pelanggan belum punya No. HP.\n\nPesan berikut akan disalin ke clipboard:\n\n' + msg + '\n\nSalin sekarang?')) return;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(msg);
-    } else {
-      const ta = document.createElement('textarea');
-      ta.value = msg;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      ta.remove();
-    }
-    showToast('Pesan disalin ke clipboard');
+    btnSend.style.display = 'none';
+    btnCopy.style.display = '';
+    btnCopy.onclick = function () {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(msg);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = msg;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+      }
+      showToast('Pesan disalin ke clipboard');
+    };
   }
+  overlay.style.display = 'flex';
+}
+
+function closeStatusNotif() {
+  document.getElementById('notif-overlay').style.display = 'none';
 }
 
 // Delete

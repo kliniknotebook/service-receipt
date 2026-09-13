@@ -406,6 +406,45 @@ tr:hover td { background: #f8fafc; }
   cursor: pointer;
 }
 
+/* Panel konfirmasi notifikasi WhatsApp */
+.notif-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.5);
+  z-index: 300;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+  backdrop-filter: blur(2px);
+}
+.notif-box {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 420px;
+  padding: 20px 24px;
+  animation: slideIn .2s ease;
+}
+.notif-box h3 { font-size: 1.05rem; margin: 0 0 12px; }
+.notif-msg {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  font-size: .9rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin-bottom: 16px;
+}
+.notif-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 /* Print preview */
 .print-preview {
   display: none;

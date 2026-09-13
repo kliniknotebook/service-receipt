@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tanda Terima Service</title>
-  <link rel="stylesheet" href="style.css?v=22">
+  <link rel="stylesheet" href="style.css?v=23">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔧</text></svg>">
 </head>
 <body>
@@ -352,6 +352,19 @@
     </div>
   </div>
 
+  <!-- Notifikasi WhatsApp (panel konfirmasi di dalam halaman) -->
+  <div class="notif-overlay" id="notif-overlay" style="display:none">
+    <div class="notif-box">
+      <h3>🔔 Kirim notifikasi status?</h3>
+      <div class="notif-msg" id="notif-msg"></div>
+      <div class="notif-actions">
+        <button type="button" class="btn btn-primary" id="notif-send">Ya, Kirim WhatsApp</button>
+        <button type="button" class="btn btn-secondary" id="notif-copy" style="display:none">Salin Pesan</button>
+        <button type="button" class="btn btn-secondary" id="notif-close">Tutup</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Print Modal -->
   <div class="print-preview" id="print-preview">
     <div class="print-actions no-print">
@@ -370,6 +383,6 @@
     <div id="print-content"></div>
   </div>
 
-  <script src="app.js?v=17"></script>
+  <script src="app.js?v=18"></script>
 </body>
 </html>
