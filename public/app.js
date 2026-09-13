@@ -1,6 +1,7 @@
 const API = '/api';
 let settings = {};
 let currentPage = 'dashboard';
+let editingPrevStatus = null;
 
 // Tambahkan token ke semua request fetch secara otomatis
 const originalFetch = window.fetch;
@@ -341,6 +342,7 @@ function openModal(data = null) {
     document.getElementById('f-payment_status').value = '';
     document.getElementById('f-due_date').value = '';
   }
+  editingPrevStatus = data ? (data.status || '') : null;
 }
 
 function closeModal() {
@@ -399,10 +401,59 @@ document.getElementById('receipt-form').addEventListener('submit', async (e) => 
     closeModal();
     if (currentPage === 'receipts') loadReceipts();
     else if (currentPage === 'dashboard') loadDashboard();
+
+    if (id && editingPrevStatus !== null && body.status !== editingPrevStatus) {
+      maybeStatusNotif(body.status);
+      editingPrevStatus = null;
+    }
   } catch (err) {
     showToast('Gagal menyimpan data', 'error');
   }
 });
+
+// Pesan notifikasi status untuk WhatsApp
+function statusNotifMsg(status, receiptNumber, device) {
+  const msgs = {
+    diterima: 'Barang Anda sudah KAMI TERIMA dan siap dikerjakan.',
+    diproses: 'Perbaikan barang Anda sedang DIKERJAKAN teknisi kami.',
+    selesai: 'Perbaikan barang Anda sudah SELESAI dan siap diambil. Mohon segera datang untuk pengambilan.',
+    diambil: 'Barang Anda sudah DIAMBIL. Terima kasih atas kepercayaannya.',
+    batal: 'Tanda terima Anda kami BATALKAN. Silakan hubungi kami jika ada pertanyaan.'
+  };
+  return `🔧 *Status Service - ${receiptNumber}*\n\n` +
+    `Device: ${device || '-'}\n\n` +
+    `${msgs[status] || 'Status perbaikan Anda berubah.'}\n\n` +
+    `Terima kasih🙏`;
+}
+
+// Konfirmasi dulu, baru buka WhatsApp (opsi b)
+function maybeStatusNotif(status) {
+  const receiptNumber = document.getElementById('f-receipt_number').value;
+  const phone = document.getElementById('f-customer_phone').value;
+  const device = [document.getElementById('f-device_type').value,
+                  document.getElementById('f-device_brand').value,
+                  document.getElementById('f-device_model').value]
+                 .filter(Boolean).join(' ');
+  const msg = statusNotifMsg(status, receiptNumber, device);
+  const wa = waPhone(phone);
+  if (wa) {
+    if (!confirm('🔔 Kirim notifikasi status ke pelanggan?\n\n' + msg + '\n\n(WhatsApp akan terbuka — tinggal tekan Kirim)')) return;
+    window.open('https://wa.me/' + wa + '?text=' + encodeURIComponent(msg), '_blank');
+  } else {
+    if (!confirm('Pelanggan belum punya No. HP.\n\nPesan berikut akan disalin ke clipboard:\n\n' + msg + '\n\nSalin sekarang?')) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(msg);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = msg;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    }
+    showToast('Pesan disalin ke clipboard');
+  }
+}
 
 // Delete
 async function deleteReceipt(id) {
