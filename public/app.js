@@ -341,6 +341,7 @@ function openModal(data = null) {
     document.getElementById('f-date').value = new Date().toLocaleDateString('id-ID');
     document.getElementById('f-payment_status').value = '';
     document.getElementById('f-due_date').value = '';
+    document.getElementById('f-create-more').checked = true;
   }
   editingPrevStatus = data ? (data.status || '') : null;
 }
@@ -396,8 +397,23 @@ document.getElementById('receipt-form').addEventListener('submit', async (e) => 
     });
 
     if (!res.ok) throw new Error();
+    const saved = await res.json();
 
     showToast(id ? 'Tanda terima berhasil diupdate' : 'Tanda terima berhasil dibuat');
+
+    // Notifikasi: muncul untuk data BARU dan saat status BERUBAH pada edit.
+    // Pakai nilai asli (sebelum form di-reset) — utk baru ambil dari respons POST.
+    if (!id || (editingPrevStatus !== null && body.status !== editingPrevStatus)) {
+      const info = saved || {
+        receipt_number: document.getElementById('f-receipt_number').value,
+        customer_phone: document.getElementById('f-customer_phone').value,
+        device_type: document.getElementById('f-device_type').value,
+        device_brand: document.getElementById('f-device_brand').value,
+        device_model: document.getElementById('f-device_model').value
+      };
+      maybeStatusNotif(body.status, info);
+      editingPrevStatus = null;
+    }
 
     const createMore = !id && document.getElementById('f-create-more').checked;
     if (createMore) {
@@ -408,11 +424,6 @@ document.getElementById('receipt-form').addEventListener('submit', async (e) => 
     }
     if (currentPage === 'receipts') loadReceipts();
     else if (currentPage === 'dashboard') loadDashboard();
-
-    if (id && editingPrevStatus !== null && body.status !== editingPrevStatus) {
-      maybeStatusNotif(body.status);
-      editingPrevStatus = null;
-    }
   } catch (err) {
     showToast('Gagal menyimpan data', 'error');
   }
@@ -434,12 +445,13 @@ function statusNotifMsg(status, receiptNumber, device) {
 }
 
 // Konfirmasi dulu, baru buka WhatsApp (opsi b)
-function maybeStatusNotif(status) {
-  const receiptNumber = document.getElementById('f-receipt_number').value;
-  const phone = document.getElementById('f-customer_phone').value;
-  const device = [document.getElementById('f-device_type').value,
-                  document.getElementById('f-device_brand').value,
-                  document.getElementById('f-device_model').value]
+function maybeStatusNotif(status, info) {
+  const d = info || {};
+  const receiptNumber = d.receipt_number || document.getElementById('f-receipt_number').value;
+  const phone = d.customer_phone || document.getElementById('f-customer_phone').value;
+  const device = ([d.device_type || document.getElementById('f-device_type').value,
+                   d.device_brand || document.getElementById('f-device_brand').value,
+                   d.device_model || document.getElementById('f-device_model').value])
                  .filter(Boolean).join(' ');
   const msg = statusNotifMsg(status, receiptNumber, device);
   const wa = waPhone(phone);
