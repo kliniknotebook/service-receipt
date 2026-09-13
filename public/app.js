@@ -387,6 +387,11 @@ document.getElementById('receipt-form').addEventListener('submit', async (e) => 
   body.payment_status = payStatus;
   body.due_date = payStatus === 'hutang' ? dueDate : '';
 
+  // Buka jendela kosong SEKARANG (masih dalam user gesture) supaya popup
+  // WhatsApp tidak diblokir browser nantinya. Diisi alamatnya setelah simpan.
+  const notifyNeeded = !id || (editingPrevStatus !== null && body.status !== editingPrevStatus);
+  let notifWin = notifyNeeded ? window.open('', '_blank') : null;
+
   try {
     const url = id ? `${API}/receipts/${id}` : `${API}/receipts`;
     const method = id ? 'PUT' : 'POST';
@@ -403,7 +408,7 @@ document.getElementById('receipt-form').addEventListener('submit', async (e) => 
 
     // Notifikasi: muncul untuk data BARU dan saat status BERUBAH pada edit.
     // Pakai nilai asli (sebelum form di-reset) — utk baru ambil dari respons POST.
-    if (!id || (editingPrevStatus !== null && body.status !== editingPrevStatus)) {
+    if (notifyNeeded) {
       const info = saved || {
         receipt_number: document.getElementById('f-receipt_number').value,
         customer_phone: document.getElementById('f-customer_phone').value,
@@ -411,7 +416,8 @@ document.getElementById('receipt-form').addEventListener('submit', async (e) => 
         device_brand: document.getElementById('f-device_brand').value,
         device_model: document.getElementById('f-device_model').value
       };
-      maybeStatusNotif(body.status, info);
+      maybeStatusNotif(body.status, info, notifWin);
+      notifWin = null;
       editingPrevStatus = null;
     }
 
@@ -425,6 +431,7 @@ document.getElementById('receipt-form').addEventListener('submit', async (e) => 
     if (currentPage === 'receipts') loadReceipts();
     else if (currentPage === 'dashboard') loadDashboard();
   } catch (err) {
+    if (notifWin) { try { notifWin.close(); } catch (e) {} }
     showToast('Gagal menyimpan data', 'error');
   }
 });
@@ -445,7 +452,7 @@ function statusNotifMsg(status, receiptNumber, device) {
 }
 
 // Konfirmasi dulu, baru buka WhatsApp (opsi b)
-function maybeStatusNotif(status, info) {
+function maybeStatusNotif(status, info, win) {
   const d = info || {};
   const receiptNumber = d.receipt_number || document.getElementById('f-receipt_number').value;
   const phone = d.customer_phone || document.getElementById('f-customer_phone').value;
@@ -455,10 +462,20 @@ function maybeStatusNotif(status, info) {
                  .filter(Boolean).join(' ');
   const msg = statusNotifMsg(status, receiptNumber, device);
   const wa = waPhone(phone);
+  const closeWin = function (w) { if (w) { try { w.close(); } catch (e) {} } };
   if (wa) {
-    if (!confirm('🔔 Kirim notifikasi status ke pelanggan?\n\n' + msg + '\n\n(WhatsApp akan terbuka — tinggal tekan Kirim)')) return;
-    window.open('https://wa.me/' + wa + '?text=' + encodeURIComponent(msg), '_blank');
+    if (!confirm('🔔 Kirim notifikasi status ke pelanggan?\n\n' + msg + '\n\n(WhatsApp akan terbuka — tinggal tekan Kirim)')) {
+      closeWin(win);
+      return;
+    }
+    const url = 'https://wa.me/' + wa + '?text=' + encodeURIComponent(msg);
+    if (win) {
+      win.location.href = url;
+    } else {
+      window.open(url, '_blank');
+    }
   } else {
+    closeWin(win);
     if (!confirm('Pelanggan belum punya No. HP.\n\nPesan berikut akan disalin ke clipboard:\n\n' + msg + '\n\nSalin sekarang?')) return;
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(msg);
