@@ -398,7 +398,14 @@ document.getElementById('receipt-form').addEventListener('submit', async (e) => 
     if (!res.ok) throw new Error();
 
     showToast(id ? 'Tanda terima berhasil diupdate' : 'Tanda terima berhasil dibuat');
-    closeModal();
+
+    const createMore = !id && document.getElementById('f-create-more').checked;
+    if (createMore) {
+      openModal(null);
+      document.getElementById('f-create-more').checked = true;
+    } else {
+      closeModal();
+    }
     if (currentPage === 'receipts') loadReceipts();
     else if (currentPage === 'dashboard') loadDashboard();
 
