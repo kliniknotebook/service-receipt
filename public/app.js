@@ -2,6 +2,7 @@ const API = '/api';
 let settings = {};
 let currentPage = 'dashboard';
 let editingPrevStatus = null;
+let editingPrevPay = null;
 
 // Tambahkan token ke semua request fetch secara otomatis
 const originalFetch = window.fetch;
@@ -390,6 +391,7 @@ function openModal(data = null) {
   toggleSettleFields();
   toggleDeliveryGroup();
   editingPrevStatus = data ? (data.status || '') : null;
+  editingPrevPay = data ? (data.payment_status || '') : null;
 }
 
 function closeModal() {
@@ -466,20 +468,30 @@ document.getElementById('receipt-form').addEventListener('submit', async (e) => 
 
     showToast(id ? 'Tanda terima berhasil diupdate' : 'Tanda terima berhasil dibuat');
 
-    // Notifikasi: muncul untuk data BARU dan saat status BERUBAH pada edit.
-    // Konfirmasi memakai panel di dalam halaman (bukan window.open),
-    // jadi tidak pernah diblokir popup blocker.
+    // Notifikasi: panel konfirmasi di dalam halaman (bukan window.open) agar
+    // tidak diblokir popup blocker. Tujuan: Pelanggan (data baru / status
+    // berubah) dan Pemilik toko (peristiwa Diantar / Diambil / Batal /
+    // Hutang baru / Lunas).
+    const info = saved || {
+      receipt_number: document.getElementById('f-receipt_number').value,
+      customer_name: document.getElementById('f-customer_name').value,
+      customer_phone: document.getElementById('f-customer_phone').value,
+      device_type: document.getElementById('f-device_type').value,
+      device_brand: document.getElementById('f-device_brand').value,
+      device_model: document.getElementById('f-device_model').value
+    };
+    const items = [];
     if (notifyNeeded) {
-      const info = saved || {
-        receipt_number: document.getElementById('f-receipt_number').value,
-        customer_phone: document.getElementById('f-customer_phone').value,
-        device_type: document.getElementById('f-device_type').value,
-        device_brand: document.getElementById('f-device_brand').value,
-        device_model: document.getElementById('f-device_model').value
-      };
-      maybeStatusNotif(body.status, info);
-      editingPrevStatus = null;
+      items.push({ label: 'Pelanggan', wa: waPhone(info.customer_phone) || '', msg: statusNotifMsg(body.status, info.receipt_number, fmtDevice(info)) });
     }
+    const ownerEvents = ownerNotifEvents(body, notifyNeeded, !id || body.payment_status !== editingPrevPay);
+    const ownerWa = (settings && settings.shop_phone) ? waPhone(settings.shop_phone) : '';
+    if (ownerEvents.length && ownerWa) {
+      items.push({ label: 'Pemilik', wa: ownerWa, msg: ownerNotifMsg(ownerEvents, info) });
+    }
+    if (items.length) showNotifPanel(items);
+    editingPrevStatus = null;
+    editingPrevPay = null;
 
     const createMore = !id && document.getElementById('f-create-more').checked;
     if (createMore) {
@@ -501,6 +513,7 @@ function statusNotifMsg(status, receiptNumber, device) {
     diterima: 'Barang Anda sudah KAMI TERIMA dan siap dikerjakan.',
     diproses: 'Perbaikan barang Anda sedang DIKERJAKAN teknisi kami.',
     selesai: 'Perbaikan barang Anda sudah SELESAI dan siap diambil. Mohon segera datang untuk pengambilan.',
+    diantar: 'Barang Anda sedang DIANTAR. Silakan tunggu kedatangan pengiriman.',
     diambil: 'Barang Anda sudah DIAMBIL. Terima kasih atas kepercayaannya.',
     batal: 'Tanda terima Anda kami BATALKAN. Silakan hubungi kami jika ada pertanyaan.'
   };
@@ -510,47 +523,85 @@ function statusNotifMsg(status, receiptNumber, device) {
     `Terima kasih🙏`;
 }
 
-// Konfirmasi notifikasi memakai panel di dalam halaman (tidak diblokir browser).
-function maybeStatusNotif(status, info) {
-  const d = info || {};
-  const receiptNumber = d.receipt_number || document.getElementById('f-receipt_number').value;
-  const phone = d.customer_phone || document.getElementById('f-customer_phone').value;
-  const device = ([d.device_type || document.getElementById('f-device_type').value,
-                   d.device_brand || document.getElementById('f-device_brand').value,
-                   d.device_model || document.getElementById('f-device_model').value])
-                 .filter(Boolean).join(' ');
-  const msg = statusNotifMsg(status, receiptNumber, device);
+// Nama device ringkas dari objek tanda terima
+function fmtDevice(d) {
+  return ([d.device_type, d.device_brand, d.device_model])
+    .map(x => (x || '').trim()).filter(Boolean).join(' ');
+}
 
-  const overlay = document.getElementById('notif-overlay');
-  document.getElementById('notif-msg').textContent = msg;
-
-  const wa = waPhone(phone);
-  const btnSend = document.getElementById('notif-send');
-  const btnCopy = document.getElementById('notif-copy');
-  if (wa) {
-    btnSend.style.display = '';
-    btnCopy.style.display = 'none';
-    btnSend.onclick = function () {
-      overlay.style.display = 'none';
-      window.open('https://wa.me/' + wa + '?text=' + encodeURIComponent(msg), '_blank');
-    };
-  } else {
-    btnSend.style.display = 'none';
-    btnCopy.style.display = '';
-    btnCopy.onclick = function () {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(msg);
-      } else {
-        const ta = document.createElement('textarea');
-        ta.value = msg;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        ta.remove();
-      }
-      showToast('Pesan disalin ke clipboard');
-    };
+// Peristiwa yang memicu notif pemilik toko (Diantar, Diambil, Batal,
+// Hutang baru, Lunas).
+function ownerNotifEvents(body, statusChanged, payChanged) {
+  const evs = [];
+  if (statusChanged) {
+    if (body.status === 'diantar') evs.push('Barang sedang DIANTAR ke pelanggan.');
+    else if (body.status === 'diambil') evs.push('Barang sudah DIAMBIL oleh pelanggan.');
+    else if (body.status === 'batal') evs.push('Tanda terima ini di BATALKAN.');
   }
+  if (payChanged) {
+    if (body.payment_status === 'hutang') {
+      evs.push('Pembayaran dicatat HUTANG' + (body.due_date ? ` (jatuh tempo ${body.due_date})` : '') + '.');
+    } else if (body.payment_status === 'lunas') {
+      const m = body.settle_method === 'transfer' ? 'Transfer' : (body.settle_method === 'cash' ? 'Cash' : '');
+      evs.push('Pembayaran LUNAS' + (m ? ` via ${m}` : '') + (body.settle_date ? ` (${body.settle_date})` : '') + '.');
+    }
+  }
+  return evs;
+}
+
+// Pesan notifikasi pemilik toko untuk WhatsApp
+function ownerNotifMsg(events, info) {
+  const d = info || {};
+  return `🔔 *Notif Pemilik* - ${(settings && settings.shop_name) || ''}\n\n` +
+    `No: ${d.receipt_number || '-'}\n` +
+    `Pelanggan: ${d.customer_name || '-'}\n` +
+    `Device: ${fmtDevice(d) || '-'}\n\n` +
+    events.join('\n') + '\n\n' +
+    `Waktu: ${new Date().toLocaleString('id-ID')}`;
+}
+
+// Konfirmasi notifikasi memakai panel di dalam halaman (tidak diblokir browser).
+function showNotifPanel(items) {
+  const overlay = document.getElementById('notif-overlay');
+  const box = overlay.querySelector('.notif-box');
+  box.querySelector('h3').textContent = items.length > 1 ? '🔔 Kirim notifikasi?' : '🔔 Kirim notifikasi status?';
+  document.getElementById('notif-msg').textContent = items.map(it => it.msg).join('\n\n--------\n\n');
+
+  const actions = document.getElementById('notif-actions');
+  actions.innerHTML = '';
+  items.forEach(it => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-primary';
+    btn.textContent = it.wa
+      ? (items.length === 1 ? 'Ya, Kirim WhatsApp' : ('Kirim WhatsApp ' + (it.label ? `(${it.label})` : '')))
+      : 'Salin Pesan';
+    btn.onclick = function () {
+      overlay.style.display = 'none';
+      if (it.wa) {
+        window.open('https://wa.me/' + it.wa + '?text=' + encodeURIComponent(it.msg), '_blank');
+      } else {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(it.msg);
+        } else {
+          const ta = document.createElement('textarea');
+          ta.value = it.msg;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          ta.remove();
+        }
+        showToast('Pesan disalin ke clipboard');
+      }
+    };
+    actions.appendChild(btn);
+  });
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'btn btn-secondary';
+  close.textContent = 'Tutup';
+  close.onclick = closeStatusNotif;
+  actions.appendChild(close);
   overlay.style.display = 'flex';
 }
 
