@@ -37,6 +37,7 @@
     .status-diterima { background: #f59e0b; }
     .status-diproses { background: #3b82f6; }
     .status-selesai { background: #10b981; }
+    .status-diantar { background: #06b6d4; }
     .status-diambil { background: #6b7280; }
     .status-batal { background: #ef4444; }
     .track-timeline { margin-top: 18px; }
@@ -110,6 +111,7 @@
       { key: 'diterima', label: 'Diterima', desc: 'Barang sudah diterima' },
       { key: 'diproses', label: 'Diproses', desc: 'Sedang dikerjakan teknisi' },
       { key: 'selesai', label: 'Selesai', desc: 'Perbaikan selesai, siap diambil' },
+      { key: 'diantar', label: 'Diantar', desc: 'Barang sedang diantar ke pelanggan' },
       { key: 'diambil', label: 'Diambil', desc: 'Barang sudah diambil pelanggan' }
     ];
 
@@ -186,6 +188,7 @@
           <div><span>Nama</span><span>${d.customer_name || '-'}</span></div>
           <div><span>Device</span><span>${[d.device_type, d.device_brand, d.device_model].filter(Boolean).join(' ') || '-'}</span></div>
           <div><span>Keluhan</span><span>${d.complaint || '-'}</span></div>
+          ${d.delivery_note ? `<div><span>Keterangan Diantar</span><span>${d.delivery_note}</span></div>` : ''}
           <div><span>Biaya Estimasi</span><span>${fmtRp(d.estimated_cost)}</span></div>
           <div><span>Uang Muka (DP)</span><span>${fmtRp(d.down_payment)}</span></div>
           <div><span>Sisa Bayar</span><span>${fmtRp((d.estimated_cost || 0) - (d.down_payment || 0))}</span></div>

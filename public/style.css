@@ -112,6 +112,7 @@ h2 { margin-bottom: 20px; font-size: 1.5rem; }
 .stat-card.blue .stat-value { color: var(--primary); }
 .stat-card.green .stat-value { color: var(--success); }
 .stat-card.orange .stat-value { color: var(--warning); }
+.stat-card.cyan .stat-value { color: #06b6d4; }
 .stat-card.teal .stat-value { color: var(--info); }
 .stat-card.red .stat-value { color: var(--danger); }
 
@@ -200,6 +201,7 @@ tr:hover td { background: #f8fafc; }
 .status-diterima { background: #dbeafe; color: #1e40af; }
 .status-diproses { background: #fef3c7; color: #92400e; }
 .status-selesai { background: #d1fae5; color: #065f46; }
+.status-diantar { background: #cffafe; color: #0e7490; }
 .status-diambil { background: #e2e8f0; color: #475569; }
 .status-batal { background: #fee2e2; color: #b91c1c; }
 

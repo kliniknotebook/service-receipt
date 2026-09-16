@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tanda Terima Service</title>
-  <link rel="stylesheet" href="style.css?v=24">
+  <link rel="stylesheet" href="style.css?v=25">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔧</text></svg>">
 </head>
 <body>
@@ -108,6 +108,7 @@
           <option value="diterima">Diterima</option>
           <option value="diproses">Diproses</option>
           <option value="selesai">Selesai</option>
+          <option value="diantar">Diantar</option>
           <option value="diambil">Diambil</option>
           <option value="batal">Batal</option>
         </select>
@@ -159,6 +160,7 @@
               <option value="diterima">Diterima</option>
               <option value="diproses">Diproses</option>
               <option value="selesai">Selesai</option>
+              <option value="diantar">Diantar</option>
               <option value="diambil">Diambil</option>
               <option value="batal">Batal</option>
             </select>
@@ -310,6 +312,10 @@
           <label>Keterangan / Yang Diganti &amp; Diperbaiki</label>
           <textarea id="f-notes" rows="2"></textarea>
         </div>
+        <div class="form-group" id="f-delivery-group" style="display:none">
+          <label>Keterangan Diantar (jika Diantar)</label>
+          <textarea id="f-delivery_note" rows="2" placeholder="cth: dikirim via kurir ke alamat pelanggan"></textarea>
+        </div>
         <div class="form-row">
           <div class="form-group">
             <label>Estimasi Biaya (Rp)</label>
@@ -325,6 +331,7 @@
               <option value="diterima">Diterima</option>
               <option value="diproses">Diproses</option>
               <option value="selesai">Selesai</option>
+              <option value="diantar">Diantar</option>
               <option value="diambil">Diambil</option>
               <option value="batal">Batal</option>
             </select>
@@ -403,6 +410,6 @@
     <div id="print-content"></div>
   </div>
 
-  <script src="app.js?v=19"></script>
+  <script src="app.js?v=20"></script>
 </body>
 </html>

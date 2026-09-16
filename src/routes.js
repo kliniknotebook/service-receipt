@@ -328,7 +328,8 @@ router.get('/public/track', async (req, res) => {
   const row = T.queryOne(tenant.id,
     `SELECT receipt_number, customer_name, customer_phone, device_type,
        device_brand, device_model, complaint, estimated_cost, down_payment,
-       status, payment_status, due_date, settle_date, settle_method, created_at, updated_at
+       status, payment_status, due_date, settle_date, settle_method,
+       delivery_note, created_at, updated_at
      FROM receipts WHERE receipt_number = ? AND customer_phone = ?`,
     [no.trim(), hp.trim()]
   );
@@ -393,14 +394,15 @@ router.post('/sync/push', (req, res) => {
         runq(req, `UPDATE receipts SET
             customer_name = ?, customer_phone = ?, customer_address = ?,
             device_type = ?, device_brand = ?, device_model = ?, device_serial = ?,
-            complaint = ?, notes = ?, estimated_cost = ?, down_payment = ?,
-            status = ?, payment_status = ?, due_date = ?, deleted = 0, updated_at = datetime('now','localtime')
+            complaint = ?, notes = ?, delivery_note = ?, estimated_cost = ?, down_payment = ?,
+            status = ?, payment_status = ?, due_date = ?, settle_date = ?, settle_method = ?,
+            deleted = 0, updated_at = datetime('now','localtime')
           WHERE client_id = ?`, [
           d.customer_name || '', d.customer_phone || '', d.customer_address || '',
           d.device_type || '', d.device_brand || '', d.device_model || '', d.device_serial || '',
-          d.complaint || '', d.notes || '',
+          d.complaint || '', d.notes || '', d.delivery_note || '',
           d.estimated_cost || 0, d.down_payment || 0, d.status || 'diterima',
-          ps, dd,
+          ps, dd, d.settle_date || '', d.settle_method || '',
           c.client_id
         ]);
       } else {
@@ -414,31 +416,32 @@ router.post('/sync/push', (req, res) => {
               client_id = ?, deleted = 0,
               customer_name = ?, customer_phone = ?, customer_address = ?,
               device_type = ?, device_brand = ?, device_model = ?, device_serial = ?,
-              complaint = ?, notes = ?,
+              complaint = ?, notes = ?, delivery_note = ?,
               estimated_cost = ?, down_payment = ?, status = ?,
-              payment_status = ?, due_date = ?,
+              payment_status = ?, due_date = ?, settle_date = ?, settle_method = ?,
               updated_at = datetime('now','localtime')
             WHERE id = ?`, [
             c.client_id,
             d.customer_name || '', d.customer_phone || '', d.customer_address || '',
             d.device_type || '', d.device_brand || '', d.device_model || '', d.device_serial || '',
-            d.complaint || '', d.notes || '',
+            d.complaint || '', d.notes || '', d.delivery_note || '',
             d.estimated_cost || 0, d.down_payment || 0, d.status || 'diterima',
-            ps, dd,
+            ps, dd, d.settle_date || '', d.settle_method || '',
             existing.id
           ]);
         } else {
           runq(req, `INSERT INTO receipts
             (receipt_number, client_id, customer_name, customer_phone, customer_address,
              device_type, device_brand, device_model, device_serial, complaint, notes,
-             estimated_cost, down_payment, status, payment_status, due_date)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+             delivery_note, estimated_cost, down_payment, status, payment_status, due_date,
+             settle_date, settle_method)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
             rnum, c.client_id,
             d.customer_name || '', d.customer_phone || '', d.customer_address || '',
             d.device_type || '', d.device_brand || '', d.device_model || '', d.device_serial || '',
-            d.complaint || '', d.notes || '',
+            d.complaint || '', d.notes || '', d.delivery_note || '',
             d.estimated_cost || 0, d.down_payment || 0, d.status || 'diterima',
-            ps, dd
+            ps, dd, d.settle_date || '', d.settle_method || ''
           ]);
         }
       }
@@ -519,7 +522,7 @@ router.post('/receipts', (req, res) => {
   const {
     customer_name, customer_phone, customer_address,
     device_type, device_brand, device_model, device_serial,
-    complaint, notes, estimated_cost, down_payment, status,
+    complaint, notes, delivery_note, estimated_cost, down_payment, status,
     payment_status, due_date, settle_date, settle_method
   } = req.body;
 
@@ -534,13 +537,13 @@ router.post('/receipts', (req, res) => {
 
   runq(req, `
     INSERT INTO receipts (receipt_number, client_id, customer_name, customer_phone, customer_address,
-      device_type, device_brand, device_model, device_serial, complaint, notes,
+      device_type, device_brand, device_model, device_serial, complaint, notes, delivery_note,
       estimated_cost, down_payment, status, payment_status, due_date, settle_date, settle_method)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     receipt_number, client_id, customer_name, customer_phone || '', customer_address || '',
     device_type || '', device_brand || '', device_model || '', device_serial || '',
-    complaint || '', notes || '',
+    complaint || '', notes || '', delivery_note || '',
     estimated_cost || 0, down_payment || 0, status || 'diterima', payStatus, dd,
     settle_date || '', settle_method || ''
   ]);
@@ -554,7 +557,7 @@ router.put('/receipts/:id', (req, res) => {
   const {
     customer_name, customer_phone, customer_address,
     device_type, device_brand, device_model, device_serial,
-    complaint, notes, estimated_cost, down_payment, status,
+    complaint, notes, delivery_note, estimated_cost, down_payment, status,
     payment_status, due_date, settle_date, settle_method
   } = req.body;
 
@@ -571,14 +574,14 @@ router.put('/receipts/:id', (req, res) => {
     UPDATE receipts SET
       customer_name = ?, customer_phone = ?, customer_address = ?,
       device_type = ?, device_brand = ?, device_model = ?, device_serial = ?,
-      complaint = ?, notes = ?, estimated_cost = ?, down_payment = ?,
+      complaint = ?, notes = ?, delivery_note = ?, estimated_cost = ?, down_payment = ?,
       status = ?, payment_status = ?, due_date = ?, settle_date = ?, settle_method = ?,
       updated_at = datetime('now','localtime')
     WHERE id = ?
   `, [
     customer_name || '', customer_phone || '', customer_address || '',
     device_type || '', device_brand || '', device_model || '', device_serial || '',
-    complaint || '', notes || '',
+    complaint || '', notes || '', delivery_note || '',
     estimated_cost || 0, down_payment || 0, status || 'diterima', payStatus, dd,
     settle_date || '', settle_method || '',
     parseInt(req.params.id)
@@ -645,6 +648,7 @@ router.get('/stats', (req, res) => {
   const diterima = one(req, "SELECT COUNT(*) as count FROM receipts WHERE status='diterima'").count;
   const diproses = one(req, "SELECT COUNT(*) as count FROM receipts WHERE status='diproses'").count;
   const selesai = one(req, "SELECT COUNT(*) as count FROM receipts WHERE status='selesai'").count;
+  const diantar = one(req, "SELECT COUNT(*) as count FROM receipts WHERE status='diantar'").count;
   const diambil = one(req, "SELECT COUNT(*) as count FROM receipts WHERE status='diambil'").count;
   const batal = one(req, "SELECT COUNT(*) as count FROM receipts WHERE status='batal'").count;
   const hutang = one(req, "SELECT COUNT(*) as count FROM receipts WHERE payment_status='hutang' AND status != 'batal'").count;
@@ -652,7 +656,7 @@ router.get('/stats', (req, res) => {
   const todayRevenue = one(req,
     "SELECT COALESCE(SUM(down_payment),0) as total FROM receipts WHERE status != 'batal' AND date(created_at) = date('now','localtime')"
   ).total;
-  res.json({ total, diterima, diproses, selesai, diambil, batal, hutang, dueCount, todayRevenue });
+  res.json({ total, diterima, diproses, selesai, diantar, diambil, batal, hutang, dueCount, todayRevenue });
 });
 
 // Report: revenue per period

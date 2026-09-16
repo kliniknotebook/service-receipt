@@ -84,6 +84,12 @@ function buildA4(settings, r, logoPath) {
     doc.moveDown(0.8);
   }
 
+  if (r.delivery_note) {
+    sectionTitle('KETERANGAN DIANTAR');
+    doc.fillColor('#000').fontSize(10).text(r.delivery_note, baseX, y, { width: width });
+    doc.moveDown(0.8);
+  }
+
   // Biaya
   doc.moveDown(0.5);
   doc.fontSize(11).fillColor('#000');
@@ -183,6 +189,12 @@ function buildHalfA4(settings, r, logoPath) {
   if (r.notes) {
     section('CATATAN TEKNISI');
     doc.fillColor('#000').fontSize(8).text(r.notes, baseX, y, { width: width });
+    doc.moveDown(0.4);
+  }
+
+  if (r.delivery_note) {
+    section('KETERANGAN DIANTAR');
+    doc.fillColor('#000').fontSize(8).text(r.delivery_note, baseX, y, { width: width });
     doc.moveDown(0.4);
   }
 

@@ -96,6 +96,7 @@ function statusBadge(status) {
     diterima: 'Diterima',
     diproses: 'Diproses',
     selesai: 'Selesai',
+    diantar: 'Diantar',
     diambil: 'Diambil',
     batal: 'Batal'
   };
@@ -179,6 +180,10 @@ async function loadDashboard() {
         <div class="stat-value">${stats.selesai}</div>
         <div class="stat-label">Selesai</div>
       </div>
+      <div class="stat-card cyan">
+        <div class="stat-value">${stats.diantar || 0}</div>
+        <div class="stat-label">Diantar</div>
+      </div>
       <div class="stat-card red">
         <div class="stat-value">${stats.batal || 0}</div>
         <div class="stat-label">Batal</div>
@@ -259,7 +264,7 @@ async function loadReceipts() {
         <td>${r.customer_phone || '-'}</td>
         <td>${r.device_type} ${r.device_brand} ${r.device_model}</td>
         <td title="${escapeHtml(r.complaint)}">${truncate(r.complaint, 40)}</td>
-        <td title="${escapeHtml(r.notes || '')}">${truncate(r.notes || '-', 40)}</td>
+        <td title="${escapeHtml(((r.notes || '') + (r.delivery_note ? ' | Diantar: ' + r.delivery_note : '')).trim())}">${truncate(((r.notes || '') + (r.delivery_note ? ' | Diantar: ' + r.delivery_note : '')).trim() || '-', 40)}</td>
         <td>${formatRupiah(r.estimated_cost)}</td>
         <td>${formatRupiah(r.down_payment)}</td>
         <td>${paymentBadge(r)}</td>
@@ -316,6 +321,13 @@ function toggleSettleFields() {
 }
 document.getElementById('f-payment_status').addEventListener('change', toggleSettleFields);
 
+function toggleDeliveryGroup() {
+  const grp = document.getElementById('f-delivery-group');
+  const on = document.getElementById('f-status').value === 'diantar';
+  grp.style.display = on ? '' : 'none';
+}
+document.getElementById('f-status').addEventListener('change', toggleDeliveryGroup);
+
 function debounce(fn, ms) {
   let timer;
   return (...args) => {
@@ -357,6 +369,7 @@ function openModal(data = null) {
     document.getElementById('f-device_serial').value = data.device_serial || '';
     document.getElementById('f-complaint').value = data.complaint || '';
     document.getElementById('f-notes').value = data.notes || '';
+    document.getElementById('f-delivery_note').value = data.delivery_note || '';
     document.getElementById('f-estimated_cost').value = numId(data.estimated_cost);
     document.getElementById('f-down_payment').value = numId(data.down_payment);
     document.getElementById('f-status').value = data.status || 'diterima';
@@ -375,6 +388,7 @@ function openModal(data = null) {
     document.getElementById('f-create-more').checked = true;
   }
   toggleSettleFields();
+  toggleDeliveryGroup();
   editingPrevStatus = data ? (data.status || '') : null;
 }
 
@@ -407,6 +421,7 @@ document.getElementById('receipt-form').addEventListener('submit', async (e) => 
     device_serial: document.getElementById('f-device_serial').value,
     complaint: document.getElementById('f-complaint').value,
     notes: document.getElementById('f-notes').value,
+    delivery_note: document.getElementById('f-delivery_note').value,
     estimated_cost: parseRupiah(document.getElementById('f-estimated_cost').value),
     down_payment: parseRupiah(document.getElementById('f-down_payment').value),
     status: document.getElementById('f-status').value
@@ -726,6 +741,7 @@ function renderDotMatrix(r, remaining) {
     <p><strong>KELUHAN</strong></p>
     <p>${r.complaint || '-'}</p>
     ${r.notes ? `<p><strong>Catatan:</strong> ${r.notes}</p>` : ''}
+    ${r.delivery_note ? `<p><strong>Keterangan Diantar:</strong> ${r.delivery_note}</p>` : ''}
 
     <hr class="receipt-divider">
     <div class="receipt-row">
@@ -822,6 +838,13 @@ function renderA4(r, remaining) {
       <tr>
         <td colspan="2" class="a4-cell-mid">${r.notes || '-'}</td>
       </tr>
+      ${r.delivery_note ? `
+      <tr>
+        <th colspan="2">KETERANGAN DIANTAR</th>
+      </tr>
+      <tr>
+        <td colspan="2" class="a4-cell-mid">${r.delivery_note}</td>
+      </tr>` : ''}
     </table>
 
     <div class="a4-cost">
@@ -910,6 +933,13 @@ function renderHalfA4(r, remaining) {
       </tr>
       <tr>
         <td colspan="2" class="a4-cell-half">${r.notes}</td>
+      </tr>` : ''}
+      ${r.delivery_note ? `
+      <tr>
+        <th colspan="2">KETERANGAN DIANTAR</th>
+      </tr>
+      <tr>
+        <td colspan="2" class="a4-cell-half">${r.delivery_note}</td>
       </tr>` : ''}
     </table>
 

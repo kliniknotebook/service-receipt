@@ -67,6 +67,7 @@ async function init(tenant) {
       device_serial TEXT,
       complaint TEXT,
       notes TEXT,
+      delivery_note TEXT DEFAULT '',
       estimated_cost INTEGER DEFAULT 0,
       down_payment INTEGER DEFAULT 0,
       status TEXT DEFAULT 'diterima',
@@ -97,6 +98,8 @@ async function init(tenant) {
   // Migrasi pelunasan hutang (Lunas)
   if (!cols.includes('settle_date')) db.run("ALTER TABLE receipts ADD COLUMN settle_date TEXT DEFAULT ''");
   if (!cols.includes('settle_method')) db.run("ALTER TABLE receipts ADD COLUMN settle_method TEXT DEFAULT ''");
+  // Migrasi keterangan Diantar (barang dikirim ke pelanggan)
+  if (!cols.includes('delivery_note')) db.run("ALTER TABLE receipts ADD COLUMN delivery_note TEXT DEFAULT ''");
 
   const defaults = {
     shop_name: tenant.shop_name || 'Service Center',
