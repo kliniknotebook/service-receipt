@@ -123,6 +123,10 @@ function payText(r) {
   if (ps === 'hutang') {
     return 'Hutang' + (r.due_date ? ' · jatuh tempo ' + fmtDateStr(r.due_date) : '');
   }
+  if (ps === 'lunas') {
+    const m = r.settle_method === 'transfer' ? 'Transfer Bank' : (r.settle_method === 'cash' ? 'Cash' : '');
+    return 'Lunas' + (m ? ' · ' + m : '') + (r.settle_date ? ' · ' + fmtDateStr(r.settle_date) : '');
+  }
   if (ps === 'cash') return 'Cash';
   return 'Kosong';
 }
@@ -132,6 +136,10 @@ function paymentBadge(r) {
   if (ps === 'hutang') {
     const overdue = isOverdue(r);
     return `<span class="pay-badge pay-hutang${overdue ? ' pay-due' : ''}">Hutang${r.due_date ? ' · ' + fmtDateStr(r.due_date) : ''}${overdue ? ' ⚠' : ''}</span>`;
+  }
+  if (ps === 'lunas') {
+    const m = r.settle_method === 'transfer' ? 'Transfer' : (r.settle_method === 'cash' ? 'Cash' : '');
+    return `<span class="pay-badge pay-lunas">Lunas${m ? ' · ' + m : ''}${r.settle_date ? ' · ' + fmtDateStr(r.settle_date) : ''}</span>`;
   }
   if (ps === 'cash') return `<span class="pay-badge pay-cash">Cash</span>`;
   return `<span class="pay-badge pay-none">Kosong</span>`;
@@ -233,6 +241,8 @@ async function loadReceipts() {
     const params = new URLSearchParams();
     if (search) params.set('search', search);
     if (status) params.set('status', status);
+    if (receiptTab === 'hutang') params.set('payment', 'hutang');
+    else if (receiptTab === 'lunas') params.set('payment', 'lunas');
 
     const receipts = await fetch(`${API}/receipts?${params}`).then(r => r.json());
     const tbody = document.querySelector('#receipts-table tbody');
@@ -289,6 +299,23 @@ function truncate(s, n) {
 document.getElementById('search-input').addEventListener('input', debounce(loadReceipts, 300));
 document.getElementById('filter-status').addEventListener('change', loadReceipts);
 
+// Tab pembayaran: Semua / Hutang / Lunas
+let receiptTab = 'semua';
+document.querySelectorAll('#receipt-tabs .tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    receiptTab = btn.dataset.tab;
+    document.querySelectorAll('#receipt-tabs .tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+    loadReceipts();
+  });
+});
+
+function toggleSettleFields() {
+  const row = document.getElementById('settle-row');
+  const on = document.getElementById('f-payment_status').value === 'lunas';
+  row.style.display = on ? '' : 'none';
+}
+document.getElementById('f-payment_status').addEventListener('change', toggleSettleFields);
+
 function debounce(fn, ms) {
   let timer;
   return (...args) => {
@@ -335,14 +362,19 @@ function openModal(data = null) {
     document.getElementById('f-status').value = data.status || 'diterima';
     document.getElementById('f-payment_status').value = data.payment_status || '';
     document.getElementById('f-due_date').value = data.due_date || '';
+    document.getElementById('f-settle_method').value = data.settle_method || '';
+    document.getElementById('f-settle_date').value = data.settle_date || '';
   } else {
     document.getElementById('modal-title').textContent = 'Tanda Terima Baru';
     document.getElementById('f-receipt_number').value = '(auto)';
     document.getElementById('f-date').value = new Date().toLocaleDateString('id-ID');
     document.getElementById('f-payment_status').value = '';
     document.getElementById('f-due_date').value = '';
+    document.getElementById('f-settle_method').value = '';
+    document.getElementById('f-settle_date').value = '';
     document.getElementById('f-create-more').checked = true;
   }
+  toggleSettleFields();
   editingPrevStatus = data ? (data.status || '') : null;
 }
 
@@ -382,12 +414,26 @@ document.getElementById('receipt-form').addEventListener('submit', async (e) => 
 
   const payStatus = document.getElementById('f-payment_status').value;
   const dueDate = document.getElementById('f-due_date').value;
+  const settleMethod = document.getElementById('f-settle_method').value;
+  const settleDate = document.getElementById('f-settle_date').value;
   if (payStatus === 'hutang' && !dueDate) {
     showToast('Tanggal jatuh tempo wajib diisi untuk status Hutang', 'error');
     return;
   }
+  if (payStatus === 'lunas') {
+    if (!settleMethod) {
+      showToast('Pilih metode pembayaran (Cash / Transfer Bank) untuk status Lunas', 'error');
+      return;
+    }
+    if (!settleDate) {
+      showToast('Tanggal lunas wajib diisi untuk status Lunas', 'error');
+      return;
+    }
+  }
   body.payment_status = payStatus;
   body.due_date = payStatus === 'hutang' ? dueDate : '';
+  body.settle_method = payStatus === 'lunas' ? settleMethod : '';
+  body.settle_date = payStatus === 'lunas' ? settleDate : '';
 
   const notifyNeeded = !id || (editingPrevStatus !== null && body.status !== editingPrevStatus);
 

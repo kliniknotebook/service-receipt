@@ -10,7 +10,7 @@ function statusLabel(status) {
 
 function buildA4(settings, r, logoPath) {
   const doc = new PDFDocument({ size: 'A4', margin: 40 });
-  const remaining = (r.estimated_cost || 0) - (r.down_payment || 0);
+  const remaining = (r.payment_status || '') === 'lunas' ? 0 : (r.estimated_cost || 0) - (r.down_payment || 0);
 
   // Header
   if (logoPath) {
@@ -94,6 +94,9 @@ function buildA4(settings, r, logoPath) {
   doc.text('Status: ' + statusLabel(r.status));
 const payText = (r.payment_status || '') === 'hutang'
   ? 'Hutang' + (r.due_date ? ' (jatuh tempo ' + r.due_date + ')' : '')
+  : (r.payment_status || '') === 'lunas'
+    ? 'Lunas' + (r.settle_method ? ' (' + (r.settle_method === 'transfer' ? 'Transfer' : 'Cash') + ')' : '')
+      + (r.settle_date ? ' ' + r.settle_date : '')
   : (r.payment_status || '') === 'cash' ? 'Cash' : 'Kosong';
   doc.text('Bayar  : ' + payText);
   doc.moveDown(1.5);
@@ -119,7 +122,7 @@ const payText = (r.payment_status || '') === 'hutang'
 function buildHalfA4(settings, r, logoPath) {
   // Half Letter: 139.7 x 215.9 mm => points (1mm=2.835): 396 x 612
   const doc = new PDFDocument({ size: [396, 612], margin: 25 });
-  const remaining = (r.estimated_cost || 0) - (r.down_payment || 0);
+  const remaining = (r.payment_status || '') === 'lunas' ? 0 : (r.estimated_cost || 0) - (r.down_payment || 0);
   const width = 346;
   const baseX = 25;
 
@@ -191,6 +194,9 @@ function buildHalfA4(settings, r, logoPath) {
   doc.text('Status  : ' + statusLabel(r.status));
 const payTextHalf = (r.payment_status || '') === 'hutang'
   ? 'Hutang' + (r.due_date ? ' (jatuh tempo ' + r.due_date + ')' : '')
+  : (r.payment_status || '') === 'lunas'
+    ? 'Lunas' + (r.settle_method ? ' (' + (r.settle_method === 'transfer' ? 'Transfer' : 'Cash') + ')' : '')
+      + (r.settle_date ? ' ' + r.settle_date : '')
   : (r.payment_status || '') === 'cash' ? 'Cash' : 'Kosong';
   doc.text('Bayar   : ' + payTextHalf);
   doc.moveDown(1.2);

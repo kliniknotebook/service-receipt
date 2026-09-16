@@ -12,9 +12,9 @@ const adminTokens = new Map();    // token -> timestamp
 const DAYS_PER_PAYMENT = 30;      // 1 bulan per pembayaran
 
 // ---------- helpers ----------
-// Status pembayaran: '' (Kosong), 'cash', 'hutang'. Default baru = '' (belum dipastikan).
+// Status pembayaran: '' (Kosong), 'cash', 'hutang', 'lunas'. Default baru = '' (belum dipastikan).
 function paymentStatusTo(v) {
-  return v === 'hutang' || v === 'cash' || v === '' ? v : 'cash';
+  return v === 'hutang' || v === 'cash' || v === 'lunas' || v === '' ? v : 'cash';
 }
 
 function dueDateTo(ps, dd) {
@@ -328,7 +328,7 @@ router.get('/public/track', async (req, res) => {
   const row = T.queryOne(tenant.id,
     `SELECT receipt_number, customer_name, customer_phone, device_type,
        device_brand, device_model, complaint, estimated_cost, down_payment,
-       status, payment_status, due_date, created_at, updated_at
+       status, payment_status, due_date, settle_date, settle_method, created_at, updated_at
      FROM receipts WHERE receipt_number = ? AND customer_phone = ?`,
     [no.trim(), hp.trim()]
   );
@@ -485,7 +485,7 @@ router.get('/sync/all', (req, res) => {
 
 // List all receipts
 router.get('/receipts', (req, res) => {
-  const { search, status } = req.query;
+  const { search, status, payment } = req.query;
   let sql = 'SELECT * FROM receipts WHERE deleted = 0';
   const params = [];
   if (search) {
@@ -496,6 +496,10 @@ router.get('/receipts', (req, res) => {
   if (status && status !== 'semua') {
     sql += ' AND status = ?';
     params.push(status);
+  }
+  if (payment && payment !== 'semua') {
+    sql += ' AND payment_status = ?';
+    params.push(payment);
   }
   sql += ' ORDER BY id DESC';
   res.json(all(req, sql, params));
@@ -516,25 +520,29 @@ router.post('/receipts', (req, res) => {
     customer_name, customer_phone, customer_address,
     device_type, device_brand, device_model, device_serial,
     complaint, notes, estimated_cost, down_payment, status,
-    payment_status, due_date
+    payment_status, due_date, settle_date, settle_method
   } = req.body;
 
   const payStatus = paymentStatusTo(payment_status);
   if (payStatus === 'hutang' && !due_date) {
     return res.status(400).json({ error: 'Tanggal jatuh tempo wajib diisi untuk status Hutang' });
   }
+  if (payStatus === 'lunas' && (!settle_method || !settle_date)) {
+    return res.status(400).json({ error: 'Status Lunas wajib mengisi Dibayar Via dan Tanggal Lunas' });
+  }
   const dd = dueDateTo(payStatus, due_date);
 
   runq(req, `
     INSERT INTO receipts (receipt_number, client_id, customer_name, customer_phone, customer_address,
       device_type, device_brand, device_model, device_serial, complaint, notes,
-      estimated_cost, down_payment, status, payment_status, due_date)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      estimated_cost, down_payment, status, payment_status, due_date, settle_date, settle_method)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     receipt_number, client_id, customer_name, customer_phone || '', customer_address || '',
     device_type || '', device_brand || '', device_model || '', device_serial || '',
     complaint || '', notes || '',
-    estimated_cost || 0, down_payment || 0, status || 'diterima', payStatus, dd
+    estimated_cost || 0, down_payment || 0, status || 'diterima', payStatus, dd,
+    settle_date || '', settle_method || ''
   ]);
 
   const row = one(req, 'SELECT * FROM receipts WHERE receipt_number = ?', [receipt_number]);
@@ -547,12 +555,15 @@ router.put('/receipts/:id', (req, res) => {
     customer_name, customer_phone, customer_address,
     device_type, device_brand, device_model, device_serial,
     complaint, notes, estimated_cost, down_payment, status,
-    payment_status, due_date
+    payment_status, due_date, settle_date, settle_method
   } = req.body;
 
   const payStatus = paymentStatusTo(payment_status);
   if (payStatus === 'hutang' && !due_date) {
     return res.status(400).json({ error: 'Tanggal jatuh tempo wajib diisi untuk status Hutang' });
+  }
+  if (payStatus === 'lunas' && (!settle_method || !settle_date)) {
+    return res.status(400).json({ error: 'Status Lunas wajib mengisi Dibayar Via dan Tanggal Lunas' });
   }
   const dd = dueDateTo(payStatus, due_date);
 
@@ -561,13 +572,15 @@ router.put('/receipts/:id', (req, res) => {
       customer_name = ?, customer_phone = ?, customer_address = ?,
       device_type = ?, device_brand = ?, device_model = ?, device_serial = ?,
       complaint = ?, notes = ?, estimated_cost = ?, down_payment = ?,
-      status = ?, payment_status = ?, due_date = ?, updated_at = datetime('now','localtime')
+      status = ?, payment_status = ?, due_date = ?, settle_date = ?, settle_method = ?,
+      updated_at = datetime('now','localtime')
     WHERE id = ?
   `, [
     customer_name || '', customer_phone || '', customer_address || '',
     device_type || '', device_brand || '', device_model || '', device_serial || '',
     complaint || '', notes || '',
     estimated_cost || 0, down_payment || 0, status || 'diterima', payStatus, dd,
+    settle_date || '', settle_method || '',
     parseInt(req.params.id)
   ]);
 

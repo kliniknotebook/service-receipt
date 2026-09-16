@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tanda Terima Service</title>
-  <link rel="stylesheet" href="style.css?v=23">
+  <link rel="stylesheet" href="style.css?v=24">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔧</text></svg>">
 </head>
 <body>
@@ -111,6 +111,11 @@
           <option value="diambil">Diambil</option>
           <option value="batal">Batal</option>
         </select>
+      </div>
+      <div class="receipt-tabs" id="receipt-tabs">
+        <button class="tab-btn active" data-tab="semua">Semua</button>
+        <button class="tab-btn" data-tab="hutang">Hutang</button>
+        <button class="tab-btn" data-tab="lunas">Lunas</button>
       </div>
       <div class="table-wrapper">
         <table id="receipts-table">
@@ -332,11 +337,26 @@
               <option value="">Kosong</option>
               <option value="cash">Cash</option>
               <option value="hutang">Hutang</option>
+              <option value="lunas">Lunas</option>
             </select>
           </div>
           <div class="form-group">
             <label>Jatuh Tempo (jika Hutang)</label>
             <input type="date" id="f-due_date">
+          </div>
+        </div>
+        <div class="form-row settle-row" id="settle-row" style="display:none">
+          <div class="form-group">
+            <label>Dibayar Via</label>
+            <select id="f-settle_method">
+              <option value="">-- Pilih --</option>
+              <option value="cash">Cash</option>
+              <option value="transfer">Transfer Bank</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Tanggal Lunas</label>
+            <input type="date" id="f-settle_date">
           </div>
         </div>
 
@@ -383,6 +403,6 @@
     <div id="print-content"></div>
   </div>
 
-  <script src="app.js?v=18"></script>
+  <script src="app.js?v=19"></script>
 </body>
 </html>

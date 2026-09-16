@@ -146,6 +146,10 @@
     function trackPay(d) {
       const ps = d.payment_status || '';
       if (ps === 'hutang') return 'Hutang' + (d.due_date ? ' · jatuh tempo ' + fmtDue(d.due_date) : '');
+      if (ps === 'lunas') {
+        const m = d.settle_method === 'transfer' ? 'Transfer Bank' : (d.settle_method === 'cash' ? 'Cash' : '');
+        return 'Lunas' + (m ? ' · ' + m : '') + (d.settle_date ? ' · ' + fmtDue(d.settle_date) : '');
+      }
       if (ps === 'cash') return 'Cash';
       return 'Kosong';
     }

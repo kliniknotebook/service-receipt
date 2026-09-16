@@ -72,6 +72,8 @@ async function init(tenant) {
       status TEXT DEFAULT 'diterima',
       payment_status TEXT DEFAULT 'cash',
       due_date TEXT,
+      settle_date TEXT DEFAULT '',
+      settle_method TEXT DEFAULT '',
       created_at TEXT DEFAULT (datetime('now','localtime')),
       updated_at TEXT DEFAULT (datetime('now','localtime')),
       client_id TEXT,
@@ -92,6 +94,9 @@ async function init(tenant) {
   // Migrasi pembayaran
   if (!cols.includes('payment_status')) db.run("ALTER TABLE receipts ADD COLUMN payment_status TEXT DEFAULT 'cash'");
   if (!cols.includes('due_date')) db.run('ALTER TABLE receipts ADD COLUMN due_date TEXT');
+  // Migrasi pelunasan hutang (Lunas)
+  if (!cols.includes('settle_date')) db.run("ALTER TABLE receipts ADD COLUMN settle_date TEXT DEFAULT ''");
+  if (!cols.includes('settle_method')) db.run("ALTER TABLE receipts ADD COLUMN settle_method TEXT DEFAULT ''");
 
   const defaults = {
     shop_name: tenant.shop_name || 'Service Center',
