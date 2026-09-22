@@ -80,6 +80,23 @@ function formatRupiah(n) {
   return 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 }
 
+// Nominal diskon ('percent' = % dari estimasi, 'rp' = rupiah)
+function discountAmount(r) {
+  const est = Number((r && r.estimated_cost) || 0);
+  const v = Number((r && r.discount_value) || 0);
+  const t = (r && r.discount_type) || '';
+  if (t === 'percent') return Math.round(est * v / 100);
+  if (t === 'rp') return Math.round(v);
+  return 0;
+}
+
+// Sisa bayar setelah diskon (lunas -> 0, sejalan cetak)
+function remainAmount(r) {
+  if ((r && r.payment_status) === 'lunas') return 0;
+  const est = Number((r && r.estimated_cost) || 0);
+  return est - discountAmount(r) - Number((r && r.down_payment) || 0);
+}
+
 // Parse input rupiah (menerima "950.000", "950000", "950,000")
 function parseRupiah(s) {
   const n = parseInt(String(s || '0').replace(/[^\d]/g, ''), 10);
@@ -254,7 +271,7 @@ async function loadReceipts() {
     const tbody = document.querySelector('#receipts-table tbody');
 
     if (receipts.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="11" class="empty-state"><div class="empty-icon">📋</div><p>Tidak ada data ditemukan</p></td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="12" class="empty-state"><div class="empty-icon">📋</div><p>Tidak ada data ditemukan</p></td></tr>`;
       return;
     }
 
@@ -267,6 +284,7 @@ async function loadReceipts() {
         <td title="${escapeHtml(r.complaint)}">${truncate(r.complaint, 40)}</td>
         <td title="${escapeHtml(((r.notes || '') + (r.delivery_note ? ' | Diantar: ' + r.delivery_note : '')).trim())}">${truncate(((r.notes || '') + (r.delivery_note ? ' | Diantar: ' + r.delivery_note : '')).trim() || '-', 40)}</td>
         <td>${formatRupiah(r.estimated_cost)}</td>
+        <td>${formatRupiah(discountAmount(r))}</td>
         <td>${formatRupiah(r.down_payment)}</td>
         <td>${paymentBadge(r)}</td>
         <td>${statusBadge(r.status)}</td>
@@ -329,6 +347,26 @@ function toggleDeliveryGroup() {
 }
 document.getElementById('f-status').addEventListener('change', toggleDeliveryGroup);
 
+// Preview sisa bayar setelah diskon di form
+function updateSisaHint() {
+  const el = document.getElementById('f-sisa-hint');
+  if (!el) return;
+  const est = parseRupiah(document.getElementById('f-estimated_cost').value);
+  const dp = parseRupiah(document.getElementById('f-down_payment').value);
+  const r = {
+    estimated_cost: est,
+    down_payment: dp,
+    discount_type: document.getElementById('f-discount_type').value,
+    discount_value: parseRupiah(document.getElementById('f-discount_value').value)
+  };
+  const disc = discountAmount(r);
+  el.textContent = 'Sisa Bayar: ' + formatRupiah(est - disc - dp) + (disc ? ' (Diskon ' + formatRupiah(disc) + ')' : '');
+}
+['f-estimated_cost', 'f-down_payment', 'f-discount_value'].forEach(idf => {
+  document.getElementById(idf).addEventListener('input', debounce(updateSisaHint, 120));
+});
+document.getElementById('f-discount_type').addEventListener('change', updateSisaHint);
+
 function debounce(fn, ms) {
   let timer;
   return (...args) => {
@@ -373,6 +411,9 @@ function openModal(data = null) {
     document.getElementById('f-delivery_note').value = data.delivery_note || '';
     document.getElementById('f-estimated_cost').value = numId(data.estimated_cost);
     document.getElementById('f-down_payment').value = numId(data.down_payment);
+    document.getElementById('f-discount_type').value = data.discount_type || '';
+    document.getElementById('f-discount_value').value = data.discount_value ? numId(data.discount_value) : '0';
+    document.getElementById('f-discount_note').value = data.discount_note || '';
     document.getElementById('f-status').value = data.status || 'diterima';
     document.getElementById('f-payment_status').value = data.payment_status || '';
     document.getElementById('f-due_date').value = data.due_date || '';
@@ -392,6 +433,7 @@ function openModal(data = null) {
   toggleDeliveryGroup();
   editingPrevStatus = data ? (data.status || '') : null;
   editingPrevPay = data ? (data.payment_status || '') : null;
+  updateSisaHint();
 }
 
 function closeModal() {
@@ -426,6 +468,9 @@ document.getElementById('receipt-form').addEventListener('submit', async (e) => 
     delivery_note: document.getElementById('f-delivery_note').value,
     estimated_cost: parseRupiah(document.getElementById('f-estimated_cost').value),
     down_payment: parseRupiah(document.getElementById('f-down_payment').value),
+    discount_type: document.getElementById('f-discount_type').value,
+    discount_value: parseRupiah(document.getElementById('f-discount_value').value),
+    discount_note: document.getElementById('f-discount_note').value,
     status: document.getElementById('f-status').value
   };
 
@@ -701,7 +746,7 @@ async function printReceipt(id) {
 function renderPrint() {
   if (!printData) return;
   const r = printData;
-  const remaining = (r.estimated_cost || 0) - (r.down_payment || 0);
+  const remaining = remainAmount(r);
   const size = document.getElementById('print-size').value;
 
   const content = document.getElementById('print-content');
@@ -736,6 +781,7 @@ async function waPdfReceipt() {
       + `Perangkat: ${[r.device_type, r.device_brand, r.device_model].filter(Boolean).join(' ') || '-'}\n`
       + `Keluhan: ${r.complaint || '-'}\n`
       + `Biaya: ${formatRupiah(r.estimated_cost)}\n`
+      + (discountAmount(r) ? `Diskon: ${formatRupiah(discountAmount(r))}${r.discount_note ? ' (' + r.discount_note + ')' : ''}\n` : '')
       + `Status: ${statusLabel(r.status)}\n`
       + `Pembayaran: ${payText(r)}\n\n`
       + `📄 PDF tanda terima Anda (klik untuk membuka):\n${url}`;
@@ -803,6 +849,10 @@ function renderDotMatrix(r, remaining) {
       <span>Uang Muka (DP)</span>
       <span>${formatRupiah(r.down_payment)}</span>
     </div>
+    ${discountAmount(r) ? `<div class="receipt-row">
+      <span>Diskon${r.discount_note ? ' (' + r.discount_note + ')' : ''}</span>
+      <span>${formatRupiah(discountAmount(r))}</span>
+    </div>` : ''}
     <div class="receipt-row receipt-bold">
       <span>Sisa Bayar</span>
       <span>${formatRupiah(remaining)}</span>
@@ -901,6 +951,7 @@ function renderA4(r, remaining) {
     <div class="a4-cost">
       <div class="a4-cost-row"><span>Estimasi Biaya</span><span>${formatRupiah(r.estimated_cost)}</span></div>
       <div class="a4-cost-row"><span>Uang Muka (DP)</span><span>${formatRupiah(r.down_payment)}</span></div>
+      ${discountAmount(r) ? `<div class="a4-cost-row"><span>Diskon${r.discount_note ? ' (' + r.discount_note + ')' : ''}</span><span>${formatRupiah(discountAmount(r))}</span></div>` : ''}
       <div class="a4-cost-row a4-total"><span>Sisa Bayar</span><span>${formatRupiah(remaining)}</span></div>
     </div>
 
@@ -997,6 +1048,7 @@ function renderHalfA4(r, remaining) {
     <div class="a4-cost">
       <div class="a4-cost-row"><span>Estimasi Biaya</span><span>${formatRupiah(r.estimated_cost)}</span></div>
       <div class="a4-cost-row"><span>Uang Muka (DP)</span><span>${formatRupiah(r.down_payment)}</span></div>
+      ${discountAmount(r) ? `<div class="a4-cost-row"><span>Diskon${r.discount_note ? ' (' + r.discount_note + ')' : ''}</span><span>${formatRupiah(discountAmount(r))}</span></div>` : ''}
       <div class="a4-cost-row a4-total"><span>Sisa Bayar</span><span>${formatRupiah(remaining)}</span></div>
     </div>
 
@@ -1360,6 +1412,10 @@ async function loadReport() {
         <div class="stat-value">${formatRupiah(s.total_estimate)}</div>
         <div class="stat-label">Total Estimasi</div>
       </div>
+      <div class="stat-card purple">
+        <div class="stat-value">${formatRupiah(s.total_discount || 0)}</div>
+        <div class="stat-label">Total Diskon</div>
+      </div>
       <div class="stat-card teal">
         <div class="stat-value">${formatRupiah(s.total_dp)}</div>
         <div class="stat-label">Total DP Diterima</div>
@@ -1374,9 +1430,9 @@ async function loadReport() {
     const tbody = document.getElementById('rpt-tbody');
 
     if (rptGroupBy === 'date') {
-      thead.innerHTML = '<tr><th>Tanggal</th><th>Jumlah</th><th>Total Estimasi</th><th>Total DP</th></tr>';
+      thead.innerHTML = '<tr><th>Tanggal</th><th>Jumlah</th><th>Total Estimasi</th><th>Total Diskon</th><th>Total DP</th></tr>';
       if (data.detail.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" class="empty-state"><p>Tidak ada data</p></td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><p>Tidak ada data</p></td></tr>';
         return;
       }
       tbody.innerHTML = data.detail.map(d => `
@@ -1384,13 +1440,14 @@ async function loadReport() {
           <td>${d.tanggal}</td>
           <td>${d.count}</td>
           <td>${formatRupiah(d.total_estimate)}</td>
+          <td>${formatRupiah(d.total_discount || 0)}</td>
           <td>${formatRupiah(d.total_dp)}</td>
         </tr>
       `).join('');
     } else {
-      thead.innerHTML = '<tr><th>No. Receipt</th><th>Pelanggan</th><th>Tanggal</th><th>Estimasi</th><th>DP</th><th>Pembayaran</th><th>Status</th></tr>';
+      thead.innerHTML = '<tr><th>No. Receipt</th><th>Pelanggan</th><th>Tanggal</th><th>Estimasi</th><th>Diskon</th><th>DP</th><th>Pembayaran</th><th>Status</th></tr>';
       if (data.detail.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><p>Tidak ada data</p></td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><p>Tidak ada data</p></td></tr>';
         return;
       }
       tbody.innerHTML = data.detail.map(r => `
@@ -1399,6 +1456,7 @@ async function loadReport() {
           <td>${r.customer_name}</td>
           <td>${formatDate(r.created_at)}</td>
           <td>${formatRupiah(r.estimated_cost)}</td>
+          <td>${formatRupiah(discountAmount(r))}</td>
           <td>${formatRupiah(r.down_payment)}</td>
           <td>${paymentBadge(r)}</td>
           <td>${statusBadge(r.status)}</td>

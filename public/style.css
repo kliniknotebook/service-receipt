@@ -985,6 +985,17 @@ table.a4-sign-table {
 
 /* ===== SaaS: banner & subscription ===== */
 .stat-card.purple .stat-value { color: #7c3aed; }
+
+.sisa-hint {
+  font-size: 13px;
+  font-weight: 600;
+  color: #2563eb;
+  background: #eff6ff;
+  border-left: 4px solid #2563eb;
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-top: 4px;
+}
 .sub-banner {
   background: #fef3c7;
   border-bottom: 1px solid #fde68a;

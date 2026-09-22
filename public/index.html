@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tanda Terima Service</title>
-  <link rel="stylesheet" href="style.css?v=25">
+  <link rel="stylesheet" href="style.css?v=26">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔧</text></svg>">
 </head>
 <body>
@@ -129,6 +129,7 @@
               <th>Keluhan</th>
               <th>Keterangan</th>
               <th>Biaya</th>
+              <th>Diskon</th>
               <th>DP</th>
               <th>Status</th>
               <th>Pembayaran</th>
@@ -339,6 +340,27 @@
         </div>
         <div class="form-row">
           <div class="form-group">
+            <label>Jenis Diskon</label>
+            <select id="f-discount_type">
+              <option value="">Tanpa Diskon</option>
+              <option value="rp">Rp (rupiah)</option>
+              <option value="percent">% (persen dari estimasi)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Diskon (isi angka)</label>
+            <input type="text" id="f-discount_value" inputmode="numeric" placeholder="cth: 20.000 atau 10" value="0">
+          </div>
+          <div class="form-group">
+            <label>Keterangan Diskon / Event</label>
+            <input type="text" id="f-discount_note" placeholder="cth: promo lebaran / garansi">
+          </div>
+        </div>
+        <div class="form-group">
+          <div class="sisa-hint" id="f-sisa-hint">Sisa Bayar: Rp 0</div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
             <label>Status Pembayaran</label>
             <select id="f-payment_status">
               <option value="">Kosong</option>
@@ -410,6 +432,6 @@
     <div id="print-content"></div>
   </div>
 
-  <script src="app.js?v=21"></script>
+  <script src="app.js?v=22"></script>
 </body>
 </html>

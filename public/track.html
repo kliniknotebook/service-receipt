@@ -164,6 +164,15 @@
       return '';
     }
 
+    function discountAmt(d) {
+      const est = Number((d && d.estimated_cost) || 0);
+      const v = Number((d && d.discount_value) || 0);
+      const t = (d && d.discount_type) || '';
+      if (t === 'percent') return Math.round(est * v / 100);
+      if (t === 'rp') return Math.round(v);
+      return 0;
+    }
+
     function renderResult(d) {
       const idx = STEPS.findIndex(x => x.key === d.status);
       let timeline = '';
@@ -190,8 +199,9 @@
           <div><span>Keluhan</span><span>${d.complaint || '-'}</span></div>
           ${d.delivery_note ? `<div><span>Keterangan Diantar</span><span>${d.delivery_note}</span></div>` : ''}
           <div><span>Biaya Estimasi</span><span>${fmtRp(d.estimated_cost)}</span></div>
+          ${discountAmt(d) ? `<div><span>Diskon${d.discount_note ? ' (' + d.discount_note + ')' : ''}</span><span>${fmtRp(discountAmt(d))}</span></div>` : ''}
           <div><span>Uang Muka (DP)</span><span>${fmtRp(d.down_payment)}</span></div>
-          <div><span>Sisa Bayar</span><span>${fmtRp((d.estimated_cost || 0) - (d.down_payment || 0))}</span></div>
+          <div><span>Sisa Bayar</span><span>${fmtRp((d.estimated_cost || 0) - discountAmt(d) - (d.down_payment || 0))}</span></div>
           <div><span>Pembayaran</span><span>${trackPay(d)}</span></div>
           <div><span>Diterima</span><span>${(d.created_at || '').slice(0, 16)}</span></div>
           ${d.updated_at && d.status !== 'diterima' ? `<div><span>Update</span><span>${(d.updated_at || '').slice(0, 16)}</span></div>` : ''}

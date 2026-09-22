@@ -8,9 +8,18 @@ function statusLabel(status) {
   return (status || 'diterima').charAt(0).toUpperCase() + (status || 'diterima').slice(1);
 }
 
+function discountAmount(r) {
+  const est = Number((r && r.estimated_cost) || 0);
+  const v = Number((r && r.discount_value) || 0);
+  const t = (r && r.discount_type) || '';
+  if (t === 'percent') return Math.round(est * v / 100);
+  if (t === 'rp') return Math.round(v);
+  return 0;
+}
+
 function buildA4(settings, r, logoPath) {
   const doc = new PDFDocument({ size: 'A4', margin: 40 });
-  const remaining = (r.payment_status || '') === 'lunas' ? 0 : (r.estimated_cost || 0) - (r.down_payment || 0);
+  const remaining = (r.payment_status || '') === 'lunas' ? 0 : (r.estimated_cost || 0) - discountAmount(r) - (r.down_payment || 0);
 
   // Header
   if (logoPath) {
@@ -95,6 +104,9 @@ function buildA4(settings, r, logoPath) {
   doc.fontSize(11).fillColor('#000');
   doc.text('Estimasi Biaya   : ' + formatRupiah(r.estimated_cost), baseX, doc.y);
   doc.text('Uang Muka (DP)  : ' + formatRupiah(r.down_payment));
+  if (discountAmount(r)) {
+    doc.text('Diskon' + (r.discount_note ? ' (' + r.discount_note + ')' : '') + ' : ' + formatRupiah(discountAmount(r)));
+  }
   doc.fontSize(12).fillColor('#000').text('Sisa Bayar       : ' + formatRupiah(remaining));
   doc.moveDown(0.5);
   doc.text('Status: ' + statusLabel(r.status));
@@ -128,7 +140,7 @@ const payText = (r.payment_status || '') === 'hutang'
 function buildHalfA4(settings, r, logoPath) {
   // Half Letter: 139.7 x 215.9 mm => points (1mm=2.835): 396 x 612
   const doc = new PDFDocument({ size: [396, 612], margin: 25 });
-  const remaining = (r.payment_status || '') === 'lunas' ? 0 : (r.estimated_cost || 0) - (r.down_payment || 0);
+  const remaining = (r.payment_status || '') === 'lunas' ? 0 : (r.estimated_cost || 0) - discountAmount(r) - (r.down_payment || 0);
   const width = 346;
   const baseX = 25;
 
@@ -202,6 +214,9 @@ function buildHalfA4(settings, r, logoPath) {
   doc.fontSize(9).fillColor('#000');
   doc.text('Estimasi: ' + formatRupiah(r.estimated_cost), baseX, doc.y);
   doc.text('DP      : ' + formatRupiah(r.down_payment));
+  if (discountAmount(r)) {
+    doc.text('Diskon' + (r.discount_note ? ' (' + r.discount_note + ')' : '') + ': ' + formatRupiah(discountAmount(r)));
+  }
   doc.text('Sisa    : ' + formatRupiah(remaining));
   doc.text('Status  : ' + statusLabel(r.status));
 const payTextHalf = (r.payment_status || '') === 'hutang'

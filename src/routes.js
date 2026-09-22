@@ -21,6 +21,15 @@ function dueDateTo(ps, dd) {
   return ps === 'hutang' ? String(dd || '') : '';
 }
 
+// Nominal diskon dari data nota ('percent' = % dari estimasi, 'rp' = rupiah)
+function discountAmount(est, type, val) {
+  const e = Number(est) || 0;
+  const v = Number(val) || 0;
+  if (type === 'percent') return Math.round(e * v / 100);
+  if (type === 'rp') return Math.round(v);
+  return 0;
+}
+
 function bearer(req) {
   const auth = req.headers.authorization || '';
   return auth.replace(/^Bearer\s+/i, '');
@@ -328,6 +337,7 @@ router.get('/public/track', async (req, res) => {
   const row = T.queryOne(tenant.id,
     `SELECT receipt_number, customer_name, customer_phone, device_type,
        device_brand, device_model, complaint, estimated_cost, down_payment,
+       discount_type, discount_value, discount_note,
        status, payment_status, due_date, settle_date, settle_method,
        delivery_note, created_at, updated_at
      FROM receipts WHERE receipt_number = ? AND customer_phone = ?`,
@@ -395,13 +405,16 @@ router.post('/sync/push', (req, res) => {
             customer_name = ?, customer_phone = ?, customer_address = ?,
             device_type = ?, device_brand = ?, device_model = ?, device_serial = ?,
             complaint = ?, notes = ?, delivery_note = ?, estimated_cost = ?, down_payment = ?,
+            discount_type = ?, discount_value = ?, discount_note = ?,
             status = ?, payment_status = ?, due_date = ?, settle_date = ?, settle_method = ?,
             deleted = 0, updated_at = datetime('now','localtime')
           WHERE client_id = ?`, [
           d.customer_name || '', d.customer_phone || '', d.customer_address || '',
           d.device_type || '', d.device_brand || '', d.device_model || '', d.device_serial || '',
           d.complaint || '', d.notes || '', d.delivery_note || '',
-          d.estimated_cost || 0, d.down_payment || 0, d.status || 'diterima',
+          d.estimated_cost || 0, d.down_payment || 0,
+          d.discount_type || '', d.discount_value || 0, d.discount_note || '',
+          d.status || 'diterima',
           ps, dd, d.settle_date || '', d.settle_method || '',
           c.client_id
         ]);
@@ -417,7 +430,9 @@ router.post('/sync/push', (req, res) => {
               customer_name = ?, customer_phone = ?, customer_address = ?,
               device_type = ?, device_brand = ?, device_model = ?, device_serial = ?,
               complaint = ?, notes = ?, delivery_note = ?,
-              estimated_cost = ?, down_payment = ?, status = ?,
+              estimated_cost = ?, down_payment = ?,
+              discount_type = ?, discount_value = ?, discount_note = ?,
+              status = ?,
               payment_status = ?, due_date = ?, settle_date = ?, settle_method = ?,
               updated_at = datetime('now','localtime')
             WHERE id = ?`, [
@@ -425,7 +440,9 @@ router.post('/sync/push', (req, res) => {
             d.customer_name || '', d.customer_phone || '', d.customer_address || '',
             d.device_type || '', d.device_brand || '', d.device_model || '', d.device_serial || '',
             d.complaint || '', d.notes || '', d.delivery_note || '',
-            d.estimated_cost || 0, d.down_payment || 0, d.status || 'diterima',
+            d.estimated_cost || 0, d.down_payment || 0,
+            d.discount_type || '', d.discount_value || 0, d.discount_note || '',
+            d.status || 'diterima',
             ps, dd, d.settle_date || '', d.settle_method || '',
             existing.id
           ]);
@@ -433,14 +450,18 @@ router.post('/sync/push', (req, res) => {
           runq(req, `INSERT INTO receipts
             (receipt_number, client_id, customer_name, customer_phone, customer_address,
              device_type, device_brand, device_model, device_serial, complaint, notes,
-             delivery_note, estimated_cost, down_payment, status, payment_status, due_date,
+             delivery_note, estimated_cost, down_payment,
+             discount_type, discount_value, discount_note,
+             status, payment_status, due_date,
              settle_date, settle_method)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
             rnum, c.client_id,
             d.customer_name || '', d.customer_phone || '', d.customer_address || '',
             d.device_type || '', d.device_brand || '', d.device_model || '', d.device_serial || '',
             d.complaint || '', d.notes || '', d.delivery_note || '',
-            d.estimated_cost || 0, d.down_payment || 0, d.status || 'diterima',
+            d.estimated_cost || 0, d.down_payment || 0,
+            d.discount_type || '', d.discount_value || 0, d.discount_note || '',
+            d.status || 'diterima',
             ps, dd, d.settle_date || '', d.settle_method || ''
           ]);
         }
@@ -523,6 +544,7 @@ router.post('/receipts', (req, res) => {
     customer_name, customer_phone, customer_address,
     device_type, device_brand, device_model, device_serial,
     complaint, notes, delivery_note, estimated_cost, down_payment, status,
+    discount_type, discount_value, discount_note,
     payment_status, due_date, settle_date, settle_method
   } = req.body;
 
@@ -538,12 +560,14 @@ router.post('/receipts', (req, res) => {
   runq(req, `
     INSERT INTO receipts (receipt_number, client_id, customer_name, customer_phone, customer_address,
       device_type, device_brand, device_model, device_serial, complaint, notes, delivery_note,
+      discount_type, discount_value, discount_note,
       estimated_cost, down_payment, status, payment_status, due_date, settle_date, settle_method)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     receipt_number, client_id, customer_name, customer_phone || '', customer_address || '',
     device_type || '', device_brand || '', device_model || '', device_serial || '',
     complaint || '', notes || '', delivery_note || '',
+    discount_type || '', discount_value || 0, discount_note || '',
     estimated_cost || 0, down_payment || 0, status || 'diterima', payStatus, dd,
     settle_date || '', settle_method || ''
   ]);
@@ -558,6 +582,7 @@ router.put('/receipts/:id', (req, res) => {
     customer_name, customer_phone, customer_address,
     device_type, device_brand, device_model, device_serial,
     complaint, notes, delivery_note, estimated_cost, down_payment, status,
+    discount_type, discount_value, discount_note,
     payment_status, due_date, settle_date, settle_method
   } = req.body;
 
@@ -575,6 +600,7 @@ router.put('/receipts/:id', (req, res) => {
       customer_name = ?, customer_phone = ?, customer_address = ?,
       device_type = ?, device_brand = ?, device_model = ?, device_serial = ?,
       complaint = ?, notes = ?, delivery_note = ?, estimated_cost = ?, down_payment = ?,
+      discount_type = ?, discount_value = ?, discount_note = ?,
       status = ?, payment_status = ?, due_date = ?, settle_date = ?, settle_method = ?,
       updated_at = datetime('now','localtime')
     WHERE id = ?
@@ -582,7 +608,9 @@ router.put('/receipts/:id', (req, res) => {
     customer_name || '', customer_phone || '', customer_address || '',
     device_type || '', device_brand || '', device_model || '', device_serial || '',
     complaint || '', notes || '', delivery_note || '',
-    estimated_cost || 0, down_payment || 0, status || 'diterima', payStatus, dd,
+    estimated_cost || 0, down_payment || 0,
+    discount_type || '', discount_value || 0, discount_note || '',
+    status || 'diterima', payStatus, dd,
     settle_date || '', settle_method || '',
     parseInt(req.params.id)
   ]);
@@ -676,7 +704,12 @@ router.get('/report', (req, res) => {
       (SELECT COUNT(*) FROM receipts ${where}) as count,
       COALESCE(SUM(down_payment),0) as total_dp,
       COALESCE(SUM(estimated_cost),0) as total_estimate,
-      COALESCE(SUM(estimated_cost),0) - COALESCE(SUM(down_payment),0) as total_remaining
+      COALESCE(SUM(CASE WHEN discount_type='percent' THEN estimated_cost*discount_value/100.0
+                        WHEN discount_type='rp' THEN discount_value ELSE 0 END),0) as total_discount,
+      COALESCE(SUM(estimated_cost),0)
+        - COALESCE(SUM(CASE WHEN discount_type='percent' THEN estimated_cost*discount_value/100.0
+                            WHEN discount_type='rp' THEN discount_value ELSE 0 END),0)
+        - COALESCE(SUM(down_payment),0) as total_remaining
     FROM receipts ${revWhere}
   `, params);
 
@@ -686,7 +719,9 @@ router.get('/report', (req, res) => {
       SELECT date(created_at) as tanggal,
         COUNT(*) as count,
         COALESCE(SUM(down_payment),0) as total_dp,
-        COALESCE(SUM(estimated_cost),0) as total_estimate
+        COALESCE(SUM(estimated_cost),0) as total_estimate,
+        COALESCE(SUM(CASE WHEN discount_type='percent' THEN estimated_cost*discount_value/100.0
+                          WHEN discount_type='rp' THEN discount_value ELSE 0 END),0) as total_discount
       FROM receipts ${revWhere}
       GROUP BY date(created_at)
       ORDER BY tanggal DESC

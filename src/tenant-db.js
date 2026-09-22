@@ -68,6 +68,9 @@ async function init(tenant) {
       complaint TEXT,
       notes TEXT,
       delivery_note TEXT DEFAULT '',
+      discount_type TEXT DEFAULT '',
+      discount_value REAL DEFAULT 0,
+      discount_note TEXT DEFAULT '',
       estimated_cost INTEGER DEFAULT 0,
       down_payment INTEGER DEFAULT 0,
       status TEXT DEFAULT 'diterima',
@@ -100,6 +103,10 @@ async function init(tenant) {
   if (!cols.includes('settle_method')) db.run("ALTER TABLE receipts ADD COLUMN settle_method TEXT DEFAULT ''");
   // Migrasi keterangan Diantar (barang dikirim ke pelanggan)
   if (!cols.includes('delivery_note')) db.run("ALTER TABLE receipts ADD COLUMN delivery_note TEXT DEFAULT ''");
+  // Migrasi diskon (Rp / %) + keterangan event/promo
+  if (!cols.includes('discount_type')) db.run("ALTER TABLE receipts ADD COLUMN discount_type TEXT DEFAULT ''");
+  if (!cols.includes('discount_value')) db.run('ALTER TABLE receipts ADD COLUMN discount_value REAL DEFAULT 0');
+  if (!cols.includes('discount_note')) db.run("ALTER TABLE receipts ADD COLUMN discount_note TEXT DEFAULT ''");
 
   const defaults = {
     shop_name: tenant.shop_name || 'Service Center',
