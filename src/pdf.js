@@ -113,7 +113,7 @@ function buildA4(settings, r, logoPath) {
 const payText = (r.payment_status || '') === 'hutang'
   ? 'Hutang' + (r.due_date ? ' (jatuh tempo ' + r.due_date + ')' : '')
   : (r.payment_status || '') === 'lunas'
-    ? 'Lunas' + (r.settle_method ? ' (' + (r.settle_method === 'transfer' ? 'Transfer' : 'Cash') + ')' : '')
+    ? 'Lunas' + (r.settle_method ? ' (' + (r.settle_method === 'transfer' ? 'Transfer Bank' : (r.settle_method === 'qris' ? 'QRIS' : 'Cash')) + ')' : '')
       + (r.settle_date ? ' ' + r.settle_date : '')
   : (r.payment_status || '') === 'cash' ? 'Cash' : 'Kosong';
   doc.text('Bayar  : ' + payText);
@@ -222,7 +222,7 @@ function buildHalfA4(settings, r, logoPath) {
 const payTextHalf = (r.payment_status || '') === 'hutang'
   ? 'Hutang' + (r.due_date ? ' (jatuh tempo ' + r.due_date + ')' : '')
   : (r.payment_status || '') === 'lunas'
-    ? 'Lunas' + (r.settle_method ? ' (' + (r.settle_method === 'transfer' ? 'Transfer' : 'Cash') + ')' : '')
+    ? 'Lunas' + (r.settle_method ? ' (' + (r.settle_method === 'transfer' ? 'Transfer Bank' : (r.settle_method === 'qris' ? 'QRIS' : 'Cash')) + ')' : '')
       + (r.settle_date ? ' ' + r.settle_date : '')
   : (r.payment_status || '') === 'cash' ? 'Cash' : 'Kosong';
   doc.text('Bayar   : ' + payTextHalf);

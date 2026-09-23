@@ -137,13 +137,21 @@ function isOverdue(r) {
   return r.payment_status === 'hutang' && !!r.due_date && String(r.due_date) <= todayISO();
 }
 
+// Label metode pembayaran (Dibayar Via): cash/transfer/qris
+function settleLabel(m) {
+  if (m === 'transfer') return 'Transfer Bank';
+  if (m === 'qris') return 'QRIS';
+  if (m === 'cash') return 'Cash';
+  return '';
+}
+
 function payText(r) {
   const ps = r.payment_status || '';
   if (ps === 'hutang') {
     return 'Hutang' + (r.due_date ? ' · jatuh tempo ' + fmtDateStr(r.due_date) : '');
   }
   if (ps === 'lunas') {
-    const m = r.settle_method === 'transfer' ? 'Transfer Bank' : (r.settle_method === 'cash' ? 'Cash' : '');
+    const m = settleLabel(r.settle_method);
     return 'Lunas' + (m ? ' · ' + m : '') + (r.settle_date ? ' · ' + fmtDateStr(r.settle_date) : '');
   }
   if (ps === 'cash') return 'Cash';
@@ -157,7 +165,7 @@ function paymentBadge(r) {
     return `<span class="pay-badge pay-hutang${overdue ? ' pay-due' : ''}">Hutang${r.due_date ? ' · ' + fmtDateStr(r.due_date) : ''}${overdue ? ' ⚠' : ''}</span>`;
   }
   if (ps === 'lunas') {
-    const m = r.settle_method === 'transfer' ? 'Transfer' : (r.settle_method === 'cash' ? 'Cash' : '');
+    const m = settleLabel(r.settle_method);
     return `<span class="pay-badge pay-lunas">Lunas${m ? ' · ' + m : ''}${r.settle_date ? ' · ' + fmtDateStr(r.settle_date) : ''}</span>`;
   }
   if (ps === 'cash') return `<span class="pay-badge pay-cash">Cash</span>`;
@@ -484,7 +492,7 @@ document.getElementById('receipt-form').addEventListener('submit', async (e) => 
   }
   if (payStatus === 'lunas') {
     if (!settleMethod) {
-      showToast('Pilih metode pembayaran (Cash / Transfer Bank) untuk status Lunas', 'error');
+      showToast('Pilih metode pembayaran (Cash / Transfer Bank / QRIS) untuk status Lunas', 'error');
       return;
     }
     if (!settleDate) {
@@ -587,7 +595,7 @@ function ownerNotifEvents(body, statusChanged, payChanged) {
     if (body.payment_status === 'hutang') {
       evs.push('Pembayaran dicatat HUTANG' + (body.due_date ? ` (jatuh tempo ${body.due_date})` : '') + '.');
     } else if (body.payment_status === 'lunas') {
-      const m = body.settle_method === 'transfer' ? 'Transfer' : (body.settle_method === 'cash' ? 'Cash' : '');
+      const m = settleLabel(body.settle_method);
       evs.push('Pembayaran LUNAS' + (m ? ` via ${m}` : '') + (body.settle_date ? ` (${body.settle_date})` : '') + '.');
     }
   }
