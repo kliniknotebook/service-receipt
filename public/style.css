@@ -1012,3 +1012,24 @@ table.a4-sign-table {
 .sub-bank-row { font-weight: 600; }
 .login-sub.register-link { margin-top: 16px; }
 .login-sub.register-link a { font-weight: 700; color: var(--primary); }
+
+/* ===== Modul Kasir ===== */
+.kasir-tabs { margin-bottom: 16px; }
+.kasir-layout {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 860px) {
+  .kasir-layout { grid-template-columns: 1fr; }
+}
+.kasir-products { min-width: 0; }
+.cart-box h4 { margin-bottom: 10px; }
+.cart-summary { margin-top: 10px; }
+.cart-summary .form-row { gap: 8px; }
+.k-qty { padding: 6px 8px; }
+.prop-sub { color: var(--text-secondary, #888); }
+.produkt-form { margin-bottom: 16px; max-width: 720px; }
+.produkt-form h4 { margin-bottom: 10px; }
+#cart-paid-group .form-row { gap: 8px; }

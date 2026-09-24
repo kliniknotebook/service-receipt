@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tanda Terima Service</title>
-  <link rel="stylesheet" href="style.css?v=27">
+  <link rel="stylesheet" href="style.css?v=28">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔧</text></svg>">
 </head>
 <body>
@@ -13,6 +13,7 @@
     <div class="nav-links">
       <a href="#" class="nav-link active" data-page="dashboard">Dashboard</a>
       <a href="#" class="nav-link" data-page="receipts">Tanda Terima</a>
+      <a href="#" class="nav-link" data-page="kasir">Kasir</a>
       <a href="#" class="nav-link" data-page="report">Laporan</a>
       <a href="#" class="nav-link" data-page="settings">Pengaturan</a>
       <a href="#" class="nav-link logged-in" id="btn-logout" style="display:none">Keluar</a>
@@ -138,6 +139,207 @@
           </thead>
           <tbody></tbody>
         </table>
+      </div>
+    </section>
+
+    <!-- Kasir -->
+    <section id="page-kasir" class="page">
+      <div class="section-header">
+        <h2>Kasir / Toko</h2>
+      </div>
+      <div class="kasir-tabs receipt-tabs" id="kasir-tabs">
+        <button class="tab-btn active" data-tab="kasir">🛒 Jual</button>
+        <button class="tab-btn" data-tab="produk">📦 Produk</button>
+        <button class="tab-btn" data-tab="riwayat">🧾 Riwayat Jualan</button>
+      </div>
+
+      <!-- Tab Kasir (Jual) -->
+      <div id="ktab-kasir">
+        <div class="kasir-layout">
+          <div class="form-card kasir-products">
+            <div class="form-group">
+              <label>Cari Produk</label>
+              <input type="text" id="kasir-search" placeholder="Nama / kategori produk...">
+            </div>
+            <div class="table-wrapper" style="max-height:420px;overflow:auto">
+              <table id="kasir-product-table">
+                <thead>
+                  <tr>
+                    <th>Nama</th>
+                    <th>Harga</th>
+                    <th>Stok</th>
+                    <th>Qty</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="form-card cart-box">
+            <h4>Keranjang</h4>
+            <div class="table-wrapper" style="max-height:200px;overflow:auto">
+              <table id="cart-table">
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th>Qty</th>
+                    <th>Subtotal</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div class="cart-summary">
+              <div class="receipt-row"><span>Subtotal</span><span id="cart-subtotal">Rp 0</span></div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Diskon</label>
+                  <select id="cart-discount_type">
+                    <option value="">Tanpa</option>
+                    <option value="rp">Rp</option>
+                    <option value="percent">%</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Nilai</label>
+                  <input type="text" id="cart-discount_value" value="0" inputmode="numeric">
+                </div>
+              </div>
+              <div id="cart-discount-note-wrap" class="form-group" style="display:none">
+                <label>Keterangan Diskon</label>
+                <input type="text" id="cart-discount_note" placeholder="cth: promo">
+              </div>
+              <div class="receipt-row receipt-bold"><span>Total</span><span id="cart-total">Rp 0</span></div>
+            </div>
+            <div class="form-group">
+              <label>Cara Bayar</label>
+              <select id="cart-method">
+                <option value="cash">Cash</option>
+                <option value="transfer">Transfer Bank</option>
+                <option value="qris">QRIS</option>
+                <option value="hutang">Hutang</option>
+              </select>
+            </div>
+            <div id="cart-paid-group">
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Uang Diterima</label>
+                  <input type="text" id="cart-paid" value="0" inputmode="numeric">
+                </div>
+                <div class="form-group">
+                  <label>Kembalian</label>
+                  <input type="text" id="cart-change" readonly>
+                </div>
+              </div>
+            </div>
+            <div id="cart-due-group" class="form-group" style="display:none">
+              <label>Jatuh Tempo (jika Hutang)</label>
+              <input type="date" id="cart-due">
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Nama Pelanggan</label>
+                <input type="text" id="cart-customer" placeholder="opsional">
+              </div>
+              <div class="form-group">
+                <label>No. HP</label>
+                <input type="text" id="cart-phone" placeholder="opsional">
+              </div>
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-primary btn-block" id="btn-save-sale">Simpan Penjualan</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Produk -->
+      <div id="ktab-produk" style="display:none">
+        <div class="form-card produkt-form" id="produk-form-card">
+          <h4 id="produk-form-title">Tambah Produk</h4>
+          <input type="hidden" id="produk-id">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Nama Produk *</label>
+              <input type="text" id="produk-name" required>
+            </div>
+            <div class="form-group">
+              <label>Kategori</label>
+              <input type="text" id="produk-category" placeholder="cth: Aksesoris / Sparepart">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Harga Jual (Rp)</label>
+              <input type="text" id="produk-price" value="0" inputmode="numeric">
+            </div>
+            <div class="form-group">
+              <label>Stok</label>
+              <input type="text" id="produk-stock" value="0" inputmode="numeric">
+            </div>
+          </div>
+          <div class="form-actions" style="justify-content:flex-start">
+            <button type="button" class="btn btn-primary" id="produk-save">Simpan</button>
+            <button type="button" class="btn btn-secondary" id="produk-reset" style="display:none">Batal Edit</button>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table id="produk-table">
+            <thead>
+              <tr>
+                <th>Nama</th>
+                <th>Kategori</th>
+                <th>Harga</th>
+                <th>Stok</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tab Riwayat Jualan -->
+      <div id="ktab-riwayat" style="display:none">
+        <div class="stats-grid" id="sale-summary"></div>
+        <div class="report-filters form-card">
+          <div class="form-row three">
+            <div class="form-group">
+              <label>Dari Tanggal</label>
+              <input type="date" id="sale-from">
+            </div>
+            <div class="form-group">
+              <label>Sampai Tanggal</label>
+              <input type="date" id="sale-to">
+            </div>
+            <div class="form-group">
+              <label>Cari</label>
+              <input type="text" id="sale-search" placeholder="No. nota / pelanggan / telp">
+            </div>
+          </div>
+          <div class="form-actions" style="justify-content:flex-start">
+            <button class="btn btn-primary" id="sale-filter-btn">Tampilkan</button>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table id="sales-table">
+            <thead>
+              <tr>
+                <th>No. Nota</th>
+                <th>Tanggal</th>
+                <th>Pelanggan</th>
+                <th>Item</th>
+                <th>Total</th>
+                <th>Dibayar</th>
+                <th>Bayar Via</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
       </div>
     </section>
 
@@ -433,6 +635,6 @@
     <div id="print-content"></div>
   </div>
 
-  <script src="app.js?v=23"></script>
+  <script src="app.js?v=24"></script>
 </body>
 </html>

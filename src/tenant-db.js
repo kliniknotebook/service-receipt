@@ -90,6 +90,46 @@ async function init(tenant) {
       value TEXT
     )
   `);
+  db.run(`
+    CREATE TABLE IF NOT EXISTS products (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id TEXT UNIQUE,
+      name TEXT NOT NULL,
+      category TEXT DEFAULT '',
+      price REAL DEFAULT 0,
+      stock REAL DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now','localtime')),
+      updated_at TEXT DEFAULT (datetime('now','localtime')),
+      synced_at TEXT,
+      deleted INTEGER DEFAULT 0
+    )
+  `);
+  db.run(`
+    CREATE TABLE IF NOT EXISTS sales (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sale_number TEXT UNIQUE NOT NULL,
+      customer_name TEXT DEFAULT '',
+      customer_phone TEXT DEFAULT '',
+      items TEXT DEFAULT '[]',
+      subtotal REAL DEFAULT 0,
+      discount_type TEXT DEFAULT '',
+      discount_value REAL DEFAULT 0,
+      discount_note TEXT DEFAULT '',
+      total REAL DEFAULT 0,
+      paid REAL DEFAULT 0,
+      change_amount REAL DEFAULT 0,
+      payment_status TEXT DEFAULT 'lunas',
+      settle_method TEXT DEFAULT 'cash',
+      due_date TEXT DEFAULT '',
+      settle_date TEXT DEFAULT '',
+      date TEXT DEFAULT (date('now','localtime')),
+      created_at TEXT DEFAULT (datetime('now','localtime')),
+      updated_at TEXT DEFAULT (datetime('now','localtime')),
+      client_id TEXT UNIQUE,
+      synced_at TEXT,
+      deleted INTEGER DEFAULT 0
+    )
+  `);
 
   // Migrasi backward-compatible: tambah kolom sync bila DB lama belum punya
   const cols = db.exec('PRAGMA table_info(receipts)')[0]?.values.map(r => r[1]) || [];

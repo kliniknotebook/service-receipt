@@ -70,6 +70,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
     currentPage = page;
     if (page === 'dashboard') loadDashboard();
     if (page === 'receipts') loadReceipts();
+    if (page === 'kasir') loadKasir();
     if (page === 'report') loadReport();
     if (page === 'settings') loadSettings();
   });
@@ -221,6 +222,22 @@ async function loadDashboard() {
       <div class="stat-card red">
         <div class="stat-value">${formatRupiah(stats.todayRevenue)}</div>
         <div class="stat-label">Pemasukan Hari Ini</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-value">${formatRupiah(stats.kasirTodayOmzet || 0)}</div>
+        <div class="stat-label">Omzet Kasir Hari Ini</div>
+      </div>
+      <div class="stat-card purple">
+        <div class="stat-value">${stats.kasirTodayCount || 0}</div>
+        <div class="stat-label">Penjualan Hari Ini</div>
+      </div>
+      <div class="stat-card orange">
+        <div class="stat-value">${stats.totalProducts || 0}</div>
+        <div class="stat-label">Jumlah Produk</div>
+      </div>
+      <div class="stat-card teal">
+        <div class="stat-value">${formatRupiah(stats.kasirOmzet || 0)}</div>
+        <div class="stat-label">Total Omzet Kasir</div>
       </div>
     `;
 
@@ -754,7 +771,7 @@ async function printReceipt(id) {
 function renderPrint() {
   if (!printData) return;
   const r = printData;
-  const remaining = remainAmount(r);
+  const isSale = !!r.sale_number;
   const size = document.getElementById('print-size').value;
 
   const content = document.getElementById('print-content');
@@ -762,6 +779,17 @@ function renderPrint() {
 
   document.body.classList.remove('printing-dotmatrix', 'printing-halfa4', 'printing-a4');
   document.body.classList.add(`printing-${size}`);
+
+  if (isSale) {
+    if (size === 'a4') {
+      content.innerHTML = renderSaleA4(r);
+    } else if (size === 'halfa4') {
+      content.innerHTML = renderSaleHalfA4(r);
+    } else {
+      content.innerHTML = renderSaleDotMatrix(r);
+    }
+    return;
+  }
 
   if (size === 'a4') {
     content.innerHTML = renderA4(r, remaining);
@@ -776,6 +804,10 @@ function renderPrint() {
 async function waPdfReceipt() {
   if (!printData) return;
   const size = document.getElementById('print-size').value === 'halfa4' ? 'half' : 'a4';
+  if (printData.sale_number) {
+    exportSalePdf(printData.id, size === 'half' ? 'half' : 'a4');
+    return;
+  }
   try {
     const res = await fetch(`${API}/receipts/${printData.id}/wa-pdf?size=${size}`, {
       headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
@@ -1474,6 +1506,580 @@ async function loadReport() {
   } catch (err) {
     showToast('Gagal memuat laporan', 'error');
   }
+}
+
+// ============ KASIR / TOKO ============
+let kasirTab = 'kasir';
+let kasirProducts = [];
+let cartArr = [];
+
+function saleDiscountAmount(subtotal, type, val) {
+  const s = Number(subtotal) || 0;
+  const v = Number(val) || 0;
+  if (type === 'percent') return Math.round(s * v / 100);
+  if (type === 'rp') return Math.round(v);
+  return 0;
+}
+
+function salePayText(s) {
+  if ((s.payment_status || '') === 'hutang') {
+    return 'Hutang' + (s.due_date ? ' · jatuh tempo ' + fmtDateStr(s.due_date) : '');
+  }
+  const m = settleLabel(s.settle_method);
+  return 'Lunas' + (m ? ' · ' + m : '') + (s.settle_date ? ' · ' + fmtDateStr(s.settle_date) : '');
+}
+
+function parseSaleItems(s) {
+  try { return JSON.parse(s.items || '[]'); } catch (e) { return []; }
+}
+
+function saleItemsLabel(s) {
+  return parseSaleItems(s).map(it => it.name).join(', ') || '-';
+}
+
+function switchKasirTab(tab) {
+  kasirTab = tab;
+  document.querySelectorAll('#kasir-tabs .tab-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.tab === tab));
+  document.getElementById('ktab-kasir').style.display = tab === 'kasir' ? '' : 'none';
+  document.getElementById('ktab-produk').style.display = tab === 'produk' ? '' : 'none';
+  document.getElementById('ktab-riwayat').style.display = tab === 'riwayat' ? '' : 'none';
+  if (tab === 'produk') loadKasirProducts();
+  if (tab === 'riwayat') loadSales();
+}
+
+document.querySelectorAll('#kasir-tabs .tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => switchKasirTab(btn.dataset.tab));
+});
+
+function saleRupiahToolbar() {
+  const input = document.getElementById('cart-paid');
+  if (input.value !== '' && input.value !== '0') {
+    input.value = input.value.replace(/\D/g, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  }
+}
+
+function renderKasirProducts(list) {
+  const tbody = document.querySelector('#kasir-product-table tbody');
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="5" class="empty-state"><p>Tidak ada produk. Tambah produk di tab Produk.</p></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = list.map(p => `
+    <tr>
+      <td>${escapeHtml(p.name)}<br><small class="prop-sub">${escapeHtml(p.category || '')}</small></td>
+      <td>${formatRupiah(p.price)}</td>
+      <td>${p.stock}</td>
+      <td><input type="number" min="1" value="1" class="k-qty" id="k-qty-${p.id}" style="width:58px"></td>
+      <td><button class="btn btn-sm btn-primary" onclick="addToCart(${p.id})">+ Tambah</button></td>
+    </tr>
+  `).join('');
+}
+
+function addToCart(pid) {
+  const p = kasirProducts.find(x => x.id === pid);
+  if (!p) return;
+  const qtyEl = document.getElementById(`k-qty-${pid}`);
+  let qty = parseInt(qtyEl.value, 10);
+  if (!qty || qty < 1) qty = 1;
+  if (p.stock !== null && p.stock !== undefined && Number(p.stock) < qty) {
+    showToast('Stok tidak cukup', 'error');
+    return;
+  }
+  const existing = cartArr.find(c => c.client_id === p.client_id);
+  if (existing) {
+    existing.qty += qty;
+  } else {
+    cartArr.push({
+      client_id: p.client_id,
+      name: p.name,
+      qty: qty,
+      price: Number(p.price) || 0
+    });
+  }
+  renderCart();
+}
+
+function renderCart() {
+  const tbody = document.querySelector('#cart-table tbody');
+  if (!cartArr.length) {
+    tbody.innerHTML = `<tr><td colspan="4" class="empty-state"><p>Keranjang kosong</p></td></tr>`;
+  } else {
+    tbody.innerHTML = cartArr.map((it, i) => `
+      <tr>
+        <td>${escapeHtml(it.name)}</td>
+        <td>${it.qty}</td>
+        <td>${formatRupiah(it.qty * it.price)}</td>
+        <td><button class="btn btn-sm btn-danger" onclick="rmCartItem(${i})">🗑️</button></td>
+      </tr>
+    `).join('');
+  }
+  updateCartTotals();
+}
+
+function rmCartItem(i) {
+  cartArr.splice(i, 1);
+  renderCart();
+}
+
+function updateCartTotals() {
+  const subtotal = cartArr.reduce((s, it) => s + it.qty * it.price, 0);
+  const type = document.getElementById('cart-discount_type').value;
+  const val = parseRupiah(document.getElementById('cart-discount_value').value);
+  const disc = saleDiscountAmount(subtotal, type, val);
+  const total = Math.max(0, subtotal - disc);
+  document.getElementById('cart-subtotal').textContent = formatRupiah(subtotal);
+  document.getElementById('cart-total').textContent = formatRupiah(total);
+  document.getElementById('cart-discount-note-wrap').style.display = disc && document.getElementById('cart-discount_type').value !== '' ? '' : 'none';
+  const paid = parseRupiah(document.getElementById('cart-paid').value);
+  const method = document.getElementById('cart-method').value;
+  if (method !== 'hutang') {
+    const change = paid >= total ? paid - total : 0;
+    document.getElementById('cart-change').value = change ? numId(change) : '';
+  } else {
+    document.getElementById('cart-change').value = '';
+  }
+}
+
+document.getElementById('cart-discount_type').addEventListener('change', updateCartTotals);
+document.getElementById('cart-discount_value').addEventListener('input', debounce(updateCartTotals, 120));
+document.getElementById('cart-paid').addEventListener('input', debounce(() => { saleRupiahToolbar(); updateCartTotals(); }, 120));
+
+document.getElementById('cart-method').addEventListener('change', () => {
+  const m = document.getElementById('cart-method').value;
+  document.getElementById('cart-paid-group').style.display = m === 'hutang' ? 'none' : '';
+  document.getElementById('cart-due-group').style.display = m === 'hutang' ? '' : 'none';
+  updateCartTotals();
+});
+
+async function saveSale() {
+  if (!cartArr.length) {
+    showToast('Keranjang masih kosong', 'error');
+    return;
+  }
+  const method = document.getElementById('cart-method').value;
+  const subtotal = cartArr.reduce((s, it) => s + it.qty * it.price, 0);
+  const discType = document.getElementById('cart-discount_type').value;
+  const discVal = parseRupiah(document.getElementById('cart-discount_value').value);
+  const disc = saleDiscountAmount(subtotal, discType, discVal);
+  const totalNet = subtotal - disc;
+  const paid = method === 'hutang' ? 0 : parseRupiah(document.getElementById('cart-paid').value);
+  if (method !== 'hutang' && paid < totalNet) {
+    showToast('Uang diterima kurang dari total', 'error');
+    return;
+  }
+  const due = document.getElementById('cart-due').value;
+
+  const body = {
+    items: cartArr.map(it => ({
+      client_id: it.client_id,
+      name: it.name,
+      qty: it.qty,
+      price: it.price
+    })),
+    customer_name: document.getElementById('cart-customer').value,
+    customer_phone: document.getElementById('cart-phone').value,
+    discount_type: discType,
+    discount_value: discVal,
+    discount_note: document.getElementById('cart-discount_note').value,
+    payment_status: method === 'hutang' ? 'hutang' : 'lunas',
+    settle_method: method === 'hutang' ? 'cash' : method,
+    paid: paid,
+    due_date: method === 'hutang' ? due : ''
+  };
+
+  try {
+    const res = await fetch(`${API}/sales`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Gagal simpan');
+    }
+    const sale = await res.json();
+    showToast('Penjualan berhasil: ' + sale.sale_number);
+    cartArr = [];
+    renderCart();
+    document.getElementById('cart-customer').value = '';
+    document.getElementById('cart-phone').value = '';
+    document.getElementById('cart-discount_type').value = '';
+    document.getElementById('cart-discount_value').value = '0';
+    document.getElementById('cart-discount_note').value = '';
+    document.getElementById('cart-paid').value = '0';
+    document.getElementById('cart-due').value = '';
+    await loadKasirProducts();
+    printSale(sale.id);
+  } catch (err) {
+    showToast(err.message || 'Gagal menyimpan penjualan', 'error');
+  }
+}
+
+document.getElementById('btn-save-sale').addEventListener('click', saveSale);
+
+// ---------- Produk ----------
+async function loadKasirProducts() {
+  const search = document.getElementById('kasir-search').value;
+  const params = new URLSearchParams();
+  if (search) params.set('search', search);
+  try {
+    const list = await fetch(`${API}/products?${params}`).then(r => r.json());
+    kasirProducts = list;
+    renderKasirProducts(list);
+    renderProdukTable(list);
+  } catch (err) {
+    showToast('Gagal memuat produk', 'error');
+  }
+}
+
+function renderProdukTable(list) {
+  const tbody = document.querySelector('#produk-table tbody');
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="5" class="empty-state"><p>Belum ada produk</p></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = list.map(p => `
+    <tr>
+      <td><strong>${escapeHtml(p.name)}</strong></td>
+      <td>${escapeHtml(p.category || '-')}</td>
+      <td>${formatRupiah(p.price)}</td>
+      <td>${p.stock}</td>
+      <td>
+        <div class="btn-group">
+          <button class="btn btn-sm btn-secondary" onclick="editProduk(${p.id})">✏️</button>
+          <button class="btn btn-sm btn-success" onclick="stockProduk(${p.id})">🏷️ Stok</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteProduk(${p.id})">🗑️</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function resetProdukForm() {
+  document.getElementById('produk-id').value = '';
+  document.getElementById('produk-name').value = '';
+  document.getElementById('produk-category').value = '';
+  document.getElementById('produk-price').value = '0';
+  document.getElementById('produk-stock').value = '0';
+  document.getElementById('produk-form-title').textContent = 'Tambah Produk';
+  document.getElementById('produk-reset').style.display = 'none';
+}
+
+async function saveProduk() {
+  const name = document.getElementById('produk-name').value.trim();
+  if (!name) { showToast('Nama produk wajib diisi', 'error'); return; }
+  const id = document.getElementById('produk-id').value;
+  const body = {
+    name: name,
+    category: document.getElementById('produk-category').value.trim(),
+    price: parseRupiah(document.getElementById('produk-price').value),
+    stock: parseRupiah(document.getElementById('produk-stock').value)
+  };
+  try {
+    const res = await fetch(`${API}/products${id ? '/' + id : ''}`, {
+      method: id ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) throw new Error();
+    showToast(id ? 'Produk berhasil diupdate' : 'Produk berhasil ditambahkan');
+    resetProdukForm();
+    loadKasirProducts();
+  } catch (err) {
+    showToast('Gagal menyimpan produk', 'error');
+  }
+}
+
+function editProduk(id) {
+  const p = kasirProducts.find(x => x.id === id);
+  if (!p) return;
+  switchKasirTab('produk');
+  document.getElementById('produk-id').value = p.id;
+  document.getElementById('produk-name').value = p.name;
+  document.getElementById('produk-category').value = p.category || '';
+  document.getElementById('produk-price').value = numId(p.price);
+  document.getElementById('produk-stock').value = numId(p.stock);
+  document.getElementById('produk-form-title').textContent = 'Edit Produk';
+  document.getElementById('produk-reset').style.display = '';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+async function stockProduk(id) {
+  const p = kasirProducts.find(x => x.id === id);
+  if (!p) return;
+  const val = prompt('Stok baru untuk "' + p.name + '" (saat ini ' + p.stock + '):', String(p.stock));
+  if (val === null) return;
+  const n = Math.max(0, parseInt(String(val).replace(/[^\d]/g, ''), 10) || 0);
+  try {
+    const res = await fetch(`${API}/products/${id}/stock`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stock: n })
+    });
+    if (!res.ok) throw new Error();
+    showToast('Stok diperbarui');
+    loadKasirProducts();
+  } catch (err) {
+    showToast('Gagal memperbarui stok', 'error');
+  }
+}
+
+async function deleteProduk(id) {
+  if (!confirm('Yakin ingin menghapus produk ini?')) return;
+  try {
+    await fetch(`${API}/products/${id}`, { method: 'DELETE' });
+    showToast('Produk dihapus');
+    loadKasirProducts();
+  } catch (err) {
+    showToast('Gagal menghapus produk', 'error');
+  }
+}
+
+document.getElementById('produk-save').addEventListener('click', saveProduk);
+document.getElementById('produk-reset').addEventListener('click', resetProdukForm);
+document.getElementById('kasir-search').addEventListener('input', debounce(() => loadKasirProducts(), 300));
+
+// ---------- Riwayat Jualan ----------
+async function loadSales() {
+  const from = document.getElementById('sale-from').value;
+  const to = document.getElementById('sale-to').value;
+  const search = document.getElementById('sale-search').value;
+  const params = new URLSearchParams();
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  if (search) params.set('search', search);
+  try {
+    const sales = await fetch(`${API}/sales?${params}`).then(r => r.json());
+    const tbody = document.querySelector('#sales-table tbody');
+    if (!sales.length) {
+      tbody.innerHTML = `<tr><td colspan="8" class="empty-state"><p>Tidak ada penjualan</p></td></tr>`;
+      document.getElementById('sale-summary').innerHTML = '';
+    } else {
+      tbody.innerHTML = sales.map(s => `
+        <tr>
+          <td><strong>${s.sale_number}</strong></td>
+          <td>${fmtDateStr(s.date)}</td>
+          <td>${escapeHtml(s.customer_name || '-')}</td>
+          <td title="${escapeHtml(saleItemsLabel(s))}">${truncate(saleItemsLabel(s), 40)}</td>
+          <td>${formatRupiah(s.total)}</td>
+          <td>${formatRupiah(s.paid)}</td>
+          <td>${salePayText(s)}</td>
+          <td>
+            <div class="btn-group">
+              <button class="btn btn-sm btn-success" onclick="printSale(${s.id})">🖨️</button>
+              <button class="btn btn-sm btn-primary" onclick="exportSalePdf(${s.id},'a4')">📄 A4</button>
+              <button class="btn btn-sm btn-secondary" onclick="exportSalePdf(${s.id},'half')">📄 ½A4</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteSale(${s.id})">🗑️</button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+      const totSub = sales.reduce((s, x) => s + Number(x.total || 0), 0);
+      const totPaid = sales.reduce((s, x) => s + Number(x.paid || 0), 0);
+      const totOut = sales.reduce((s, x) => s + ((x.payment_status === 'hutang') ? (Number(x.total || 0) - Number(x.paid || 0)) : 0), 0);
+      document.getElementById('sale-summary').innerHTML = `
+        <div class="stat-card blue"><div class="stat-value">${sales.length}</div><div class="stat-label">Transaksi</div></div>
+        <div class="stat-card teal"><div class="stat-value">${formatRupiah(totSub)}</div><div class="stat-label">Total Penjualan</div></div>
+        <div class="stat-card green"><div class="stat-value">${formatRupiah(totPaid)}</div><div class="stat-label">Total Diterima</div></div>
+        <div class="stat-card orange"><div class="stat-value">${formatRupiah(totOut)}</div><div class="stat-label">Sisa Hutang</div></div>
+      `;
+    }
+  } catch (err) {
+    showToast('Gagal memuat riwayat jualan', 'error');
+  }
+}
+
+document.getElementById('sale-filter-btn').addEventListener('click', loadSales);
+
+async function printSale(id) {
+  try {
+    const s = await fetch(`${API}/sales/${id}`).then(r => r.json());
+    const conf = await fetch(`${API}/settings`).then(r => r.json());
+    settings = conf;
+    printData = s;
+    document.getElementById('print-size').value = 'dotmatrix';
+    renderPrint();
+    document.getElementById('print-preview').classList.add('open');
+  } catch (err) {
+    showToast('Gagal memuat data cetak', 'error');
+  }
+}
+
+async function exportSalePdf(id, format) {
+  const path = format === 'half' ? `${API}/sales/${id}/export/half` : `${API}/sales/${id}/export`;
+  try {
+    const res = await fetch(path, {
+      headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+    });
+    if (!res.ok) throw new Error();
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const s = await fetch(`${API}/sales/${id}`, { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } }).then(x => x.json());
+    a.download = `${s.sale_number}${format === 'half' ? '-half' : ''}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+    showToast('PDF struk berhasil diunduh');
+  } catch (err) {
+    showToast('Gagal export PDF', 'error');
+  }
+}
+
+async function deleteSale(id) {
+  if (!confirm('Yakin ingin menghapus penjualan ini?')) return;
+  try {
+    await fetch(`${API}/sales/${id}`, { method: 'DELETE' });
+    showToast('Penjualan dihapus');
+    loadSales();
+  } catch (err) {
+    showToast('Gagal menghapus penjualan', 'error');
+  }
+}
+
+// ---------- Printable Struk Kasir ----------
+function renderSaleDotMatrix(s) {
+  const items = parseSaleItems(s);
+  const disc = saleDiscountAmount(s.subtotal, s.discount_type, s.discount_value);
+  return `
+    <div class="receipt-header">
+      ${logoHtml()}
+      <h2>${settings.shop_name || 'Toko'}</h2>
+      <p>${settings.shop_address || ''}</p>
+      <p>Telp: ${settings.shop_phone || '-'}</p>
+    </div>
+
+    <p><strong>No :</strong> ${s.sale_number}</p>
+    <p><strong>Tgl :</strong> ${fmtDateStr(s.date || s.created_at)}</p>
+
+    <hr class="receipt-divider">
+    <p><strong>PELANGGAN</strong></p>
+    <p>Nama : ${s.customer_name || '-'}</p>
+    <p>Telp : ${s.customer_phone || '-'}</p>
+
+    <hr class="receipt-divider">
+    <p><strong>ITEM</strong></p>
+    ${items.map(it => `<div class="receipt-row">
+      <span>${it.qty} x ${it.name}</span>
+      <span>${formatRupiah(it.qty * it.price)}</span>
+    </div>`).join('')}
+
+    <hr class="receipt-divider">
+    <div class="receipt-row"><span>Subtotal</span><span>${formatRupiah(s.subtotal)}</span></div>
+    ${disc ? `<div class="receipt-row"><span>Diskon${s.discount_note ? ' (' + s.discount_note + ')' : ''}</span><span>${formatRupiah(disc)}</span></div>` : ''}
+    <div class="receipt-row receipt-bold"><span>Total</span><span>${formatRupiah(s.total)}</span></div>
+    <div class="receipt-row"><span>Dibayar</span><span>${formatRupiah(s.paid)}</span></div>
+    ${Number(s.change_amount) > 0 ? `<div class="receipt-row"><span>Kembalian</span><span>${formatRupiah(s.change_amount)}</span></div>` : ''}
+    ${(s.payment_status || '') === 'hutang' ? `<div class="receipt-row receipt-bold"><span>Sisa Hutang</span><span>${formatRupiah(Number(s.total) - Number(s.paid))}</span></div>` : ''}
+
+    <hr class="receipt-divider">
+    <div class="receipt-row">
+      <span>Pembayaran</span>
+      <span class="receipt-bold">${salePayText(s)}</span>
+    </div>
+
+    <hr class="receipt-divider">
+    <div class="dotmatrix-sign">
+      <div class="sign-left">
+        <p>Pembeli</p>
+        <div class="sign-space"></div>
+        <p>.......................</p>
+      </div>
+      <div class="sign-right">
+        <p>Petugas / Kasir</p>
+        <div class="sign-space"></div>
+        <p>.......................</p>
+      </div>
+    </div>
+
+    <div class="receipt-footer">
+      <p>${settings.shop_footer || 'Terima kasih'}</p>
+    </div>
+  `;
+}
+
+function renderSaleA4(s) {
+  const items = parseSaleItems(s);
+  const disc = saleDiscountAmount(s.subtotal, s.discount_type, s.discount_value);
+  return `
+    <div class="a4-header">
+      <div class="a4-brand">
+        ${logoHtml()}
+        <h1>${settings.shop_name || 'Toko'}</h1>
+        <p>${settings.shop_address || ''}</p>
+        <p>Telp: ${settings.shop_phone || '-'}</p>
+      </div>
+      <div class="a4-title">
+        <h2>STRUK PENJUALAN</h2>
+        <p><strong>No:</strong> ${s.sale_number}</p>
+        <p><strong>Tanggal:</strong> ${fmtDateStr(s.date || s.created_at)}</p>
+      </div>
+    </div>
+
+    <table class="a4-table">
+      <tr><th colspan="2">DATA PELANGGAN</th></tr>
+      <tr>
+        <td colspan="2">
+          <div class="a4-field"><span>Nama:</span> <b>${s.customer_name || '-'}</b></div>
+          <div class="a4-field"><span>Telepon:</span> ${s.customer_phone || '-'}</div>
+        </td>
+      </tr>
+      <tr><th colspan="2">RINCIAN BARANG</th></tr>
+      <tr>
+        <td colspan="2">
+          ${items.map(it => `<div class="a4-field"><span>${it.qty} x ${escapeHtml(it.name)}:</span> <b>${formatRupiah(it.qty * it.price)}</b></div>`).join('')}
+        </td>
+      </tr>
+    </table>
+
+    <div class="a4-cost">
+      <div class="a4-cost-row"><span>Subtotal</span><span>${formatRupiah(s.subtotal)}</span></div>
+      ${disc ? `<div class="a4-cost-row"><span>Diskon${s.discount_note ? ' (' + s.discount_note + ')' : ''}</span><span>${formatRupiah(disc)}</span></div>` : ''}
+      <div class="a4-cost-row a4-total"><span>Total</span><span>${formatRupiah(s.total)}</span></div>
+      <div class="a4-cost-row"><span>Dibayar</span><span>${formatRupiah(s.paid)}</span></div>
+      ${Number(s.change_amount) > 0 ? `<div class="a4-cost-row"><span>Kembalian</span><span>${formatRupiah(s.change_amount)}</span></div>` : ''}
+      ${(s.payment_status || '') === 'hutang' ? `<div class="a4-cost-row a4-total"><span>Sisa Hutang</span><span>${formatRupiah(Number(s.total) - Number(s.paid))}</span></div>` : ''}
+    </div>
+
+    <div class="a4-status"><p>Pembayaran: <b>${salePayText(s)}</b></p></div>
+
+    <table class="a4-sign-table">
+      <tr class="a4-sign-label">
+        <td><span>Petugas / Kasir</span></td>
+        <td></td>
+        <td><span>Pembeli</span></td>
+      </tr>
+      <tr class="a4-sign-space"><td></td><td></td><td></td></tr>
+      <tr class="a4-sign-name">
+        <td>( ..................... )</td>
+        <td></td>
+        <td>( ..................... )</td>
+      </tr>
+    </table>
+
+    <div class="a4-footer">
+      <p>${settings.shop_footer || 'Terima kasih'}</p>
+    </div>
+  `;
+}
+
+function renderSaleHalfA4(s) {
+  return `<div class="half-header" style="margin-bottom:10px">
+      <div>
+        ${logoHtml()}
+        <h1>${settings.shop_name || 'Toko'}</h1>
+        <p>${settings.shop_address || ''} ${settings.shop_phone ? '| Telp: ' + settings.shop_phone : ''}</p>
+      </div>
+      <div class="half-title">
+        <h2>STRUK PENJUALAN</h2>
+        <p><strong>No:</strong> ${s.sale_number}</p>
+        <p><strong>Tanggal:</strong> ${fmtDateStr(s.date || s.created_at)}</p>
+      </div>
+    </div>
+    ${renderSaleA4(s)}`;
 }
 
 // ============ INIT ============
