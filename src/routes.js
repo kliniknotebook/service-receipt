@@ -814,6 +814,34 @@ router.get('/pdf/:tid/:id', async (req, res) => {
   }
 });
 
+// Link PDF STRUK PENJUALAN publik (tanpa login) untuk dibuka pelanggan dari WA
+router.get('/pdf-sale/:tid/:id', async (req, res) => {
+  const tid = req.params.tid;
+  const id = parseInt(req.params.id);
+  if (!pdfVerify(tid, id, req.query.k)) {
+    return res.status(403).json({ error: 'Link tidak valid' });
+  }
+  try {
+    const tenant = M.queryOne('SELECT * FROM tenants WHERE id = ?', [tid]);
+    if (!tenant) return res.status(404).json({ error: 'Tidak ditemukan' });
+    await ensureTenantDb(tenant);
+    const row = T.queryOne(tid, 'SELECT * FROM sales WHERE id = ? AND deleted = 0', [id]);
+    if (!row) return res.status(404).json({ error: 'Tidak ditemukan' });
+    const so = tenantSettingsObjFromDb(tid);
+    const { buildSaleStruk, buildSaleStrukHalf } = require('./pdf');
+    const doc = req.query.size === 'half'
+      ? buildSaleStrukHalf(so, row, tenantLogoPathFor(tid, so))
+      : buildSaleStruk(so, row, tenantLogoPathFor(tid, so));
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition',
+      `inline; filename="${row.sale_number}${req.query.size === 'half' ? '-half' : ''}.pdf"`);
+    doc.pipe(res);
+    doc.end();
+  } catch (e) {
+    res.status(500).json({ error: 'Gagal membuat PDF' });
+  }
+});
+
 // ============================================================
 //  MODUL KASIR: PRODUK
 // ============================================================
@@ -1079,6 +1107,15 @@ router.get('/sales/:id/export/half', (req, res) => {
   res.setHeader('Content-Disposition', `attachment; filename="${r.sale_number}-half.pdf"`);
   doc.pipe(res);
   doc.end();
+});
+
+// Link PDF STRUK untuk dikirim ke pelanggan via WhatsApp (kasir)
+router.get('/sales/:id/wa-pdf', (req, res) => {
+  const r = one(req, 'SELECT * FROM sales WHERE id = ?', [parseInt(req.params.id)]);
+  if (!r) return res.status(404).json({ error: 'Tidak ditemukan' });
+  const size = req.query.size === 'half' ? 'half' : 'a4';
+  const k = pdfSign(req.tenantId, r.id);
+  res.json({ url: `/api/pdf-sale/${req.tenantId}/${r.id}?k=${k}&size=${size}` });
 });
 
 // ============================================================

@@ -805,7 +805,7 @@ async function waPdfReceipt() {
   if (!printData) return;
   const size = document.getElementById('print-size').value === 'halfa4' ? 'half' : 'a4';
   if (printData.sale_number) {
-    exportSalePdf(printData.id, size === 'half' ? 'half' : 'a4');
+    await sendSaleWaPdf(printData, size);
     return;
   }
   try {
@@ -844,6 +844,59 @@ async function waPdfReceipt() {
     }
   } catch (err) {
     showToast('Gagal membuat PDF via WhatsApp', 'error');
+  }
+}
+
+// Kirim struk penjualan (PDF) via WhatsApp - jangan di-unduh, langsung buka WA
+async function sendSaleWaPdf(sale, size) {
+  try {
+    const res = await fetch(`${API}/sales/${sale.id}/wa-pdf?size=${size}`, {
+      headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+    });
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    const url = location.origin + data.url;
+    let items;
+    try {
+      items = JSON.parse(sale.items || '[]');
+    } catch (e) {
+      items = [];
+    }
+    const lines = items.length
+      ? items.map(i => `- ${i.name} x${i.qty} @ ${formatRupiah(i.price)}`).join('\n')
+      : '-';
+    const disc = Number(sale.subtotal || 0) - Number(sale.total || 0);
+    const msg = `🧾 *Nota Penjualan ${sale.sale_number}*\n\n`
+      + `Pelanggan: ${sale.customer_name || '-'}\n`
+      + (sale.customer_phone ? `HP: ${sale.customer_phone}\n` : '')
+      + `Tanggal: ${sale.date || '-'}\n\n`
+      + `Item:\n${lines}\n\n`
+      + `Subtotal: ${formatRupiah(sale.subtotal)}\n`
+      + (disc > 0 ? `Diskon: ${formatRupiah(disc)}\n` : '')
+      + `Total: ${formatRupiah(sale.total)}\n`
+      + `Dibayar: ${formatRupiah(sale.paid)}`
+      + (sale.payment_status === 'hutang' ? ' (Hutang)' : '') + '\n'
+      + (sale.due_date ? `Jatuh tempo: ${sale.due_date}\n` : '')
+      + `\n📄 PDF struk Anda (klik untuk membuka):\n${url}`;
+    const wa = waPhone(sale.customer_phone);
+    if (wa) {
+      window.open(`https://wa.me/${wa}?text=${encodeURIComponent(msg)}`, '_blank');
+      showToast('WhatsApp dibuka dengan link PDF struk');
+    } else {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = url;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+      }
+      showToast('Pelanggan belum punya no. HP. Link PDF struk disalin.');
+    }
+  } catch (err) {
+    showToast('Gagal membuat PDF struk via WhatsApp', 'error');
   }
 }
 
