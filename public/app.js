@@ -239,6 +239,18 @@ async function loadDashboard() {
         <div class="stat-value">${formatRupiah(stats.kasirOmzet || 0)}</div>
         <div class="stat-label">Total Omzet Kasir</div>
       </div>
+      <div class="stat-card green">
+        <div class="stat-value">${formatRupiah(stats.kasirLaba || 0)}</div>
+        <div class="stat-label">Laba Kotor Kasir</div>
+      </div>
+      <div class="stat-card cyan">
+        <div class="stat-value">${Number(stats.kasirMargin || 0).toLocaleString('id-ID', { maximumFractionDigits: 1 })}%</div>
+        <div class="stat-label">Margin Kasir</div>
+      </div>
+      <div class="stat-card purple">
+        <div class="stat-value">${formatRupiah(stats.kasirTodayLaba || 0)}</div>
+        <div class="stat-label">Laba Kotor Hari Ini</div>
+      </div>
     `;
 
     const tbody = document.querySelector('#recent-table tbody');
@@ -1912,7 +1924,7 @@ async function loadSales() {
     const sales = await fetch(`${API}/sales?${params}`).then(r => r.json());
     const tbody = document.querySelector('#sales-table tbody');
     if (!sales.length) {
-      tbody.innerHTML = `<tr><td colspan="8" class="empty-state"><p>Tidak ada penjualan</p></td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="9" class="empty-state"><p>Tidak ada penjualan</p></td></tr>`;
       document.getElementById('sale-summary').innerHTML = '';
     } else {
       tbody.innerHTML = sales.map(s => `
@@ -1922,6 +1934,7 @@ async function loadSales() {
           <td>${escapeHtml(s.customer_name || '-')}</td>
           <td title="${escapeHtml(saleItemsLabel(s))}">${truncate(saleItemsLabel(s), 40)}</td>
           <td>${formatRupiah(s.total)}</td>
+          <td>${formatRupiah(s.laba ?? 0)}</td>
           <td>${formatRupiah(s.paid)}</td>
           <td>${salePayText(s)}</td>
           <td>
@@ -1936,12 +1949,16 @@ async function loadSales() {
       `).join('');
       const totSub = sales.reduce((s, x) => s + Number(x.total || 0), 0);
       const totPaid = sales.reduce((s, x) => s + Number(x.paid || 0), 0);
+      const totLaba = sales.reduce((s, x) => s + Number(x.laba ?? 0), 0);
       const totOut = sales.reduce((s, x) => s + ((x.payment_status === 'hutang') ? (Number(x.total || 0) - Number(x.paid || 0)) : 0), 0);
+      const margin = totSub > 0 ? Math.round(totLaba * 100 / totSub * 10) / 10 : 0;
       document.getElementById('sale-summary').innerHTML = `
         <div class="stat-card blue"><div class="stat-value">${sales.length}</div><div class="stat-label">Transaksi</div></div>
         <div class="stat-card teal"><div class="stat-value">${formatRupiah(totSub)}</div><div class="stat-label">Total Penjualan</div></div>
-        <div class="stat-card green"><div class="stat-value">${formatRupiah(totPaid)}</div><div class="stat-label">Total Diterima</div></div>
-        <div class="stat-card orange"><div class="stat-value">${formatRupiah(totOut)}</div><div class="stat-label">Sisa Hutang</div></div>
+        <div class="stat-card green"><div class="stat-value">${formatRupiah(totLaba)}</div><div class="stat-label">Laba Kotor</div></div>
+        <div class="stat-card cyan"><div class="stat-value">${margin.toLocaleString('id-ID', { maximumFractionDigits: 1 })}%</div><div class="stat-label">Margin</div></div>
+        <div class="stat-card orange"><div class="stat-value">${formatRupiah(totPaid)}</div><div class="stat-label">Total Diterima</div></div>
+        <div class="stat-card red"><div class="stat-value">${formatRupiah(totOut)}</div><div class="stat-label">Sisa Hutang</div></div>
       `;
     }
   } catch (err) {

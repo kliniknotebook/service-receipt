@@ -713,12 +713,22 @@ router.get('/stats', (req, res) => {
   const kasirToday = one(req, `SELECT COUNT(*) as count,
       COALESCE(SUM(total),0) as total, COALESCE(SUM(paid),0) as paid
     FROM sales WHERE deleted = 0 AND date = date('now','localtime')`);
+  const hppMap = productHppMap(req);
+  const kasirLaba = all(req, 'SELECT total, items FROM sales WHERE deleted = 0')
+    .reduce((s, r) => s + saleLaba(r.total, r.items, hppMap), 0);
+  const kasirTodayLaba = all(req, `SELECT total, items FROM sales
+    WHERE deleted = 0 AND date = date('now','localtime')`)
+    .reduce((s, r) => s + saleLaba(r.total, r.items, hppMap), 0);
   res.json({
     total, diterima, diproses, selesai, diantar, diambil, batal, hutang, dueCount, todayRevenue,
     totalProducts, totalSales, kasirOmzet,
+    kasirLaba,
+    kasirMargin: kasirOmzet > 0 ? Math.round(kasirLaba / kasirOmzet * 1000) / 10 : 0,
     kasirTodayCount: kasirToday.count,
     kasirTodayOmzet: kasirToday.total,
-    kasirTodayPaid: kasirToday.paid
+    kasirTodayPaid: kasirToday.paid,
+    kasirTodayLaba,
+    kasirTodayMargin: kasirToday.total > 0 ? Math.round(kasirTodayLaba / kasirToday.total * 1000) / 10 : 0
   });
 });
 
@@ -955,6 +965,31 @@ function snapshotHpp(req, items) {
   return out;
 }
 
+// Peta client_id -> hpp produk (dipakai menghitung laba penjualan lama
+// yang item-nya belum punya snapshot hpp).
+function productHppMap(req) {
+  const m = {};
+  for (const p of all(req, 'SELECT client_id, hpp FROM products')) m[p.client_id] = Number(p.hpp) || 0;
+  return m;
+}
+
+// Laba kotor satu penjualan = total - total (qty * hpp) item.
+// HPP item dari snapshot items.hpp; bila tidak ada, fallback ke hpp produk.
+function saleLaba(total, itemsText, hppMap) {
+  let lines = [];
+  try { lines = JSON.parse(itemsText || '[]'); } catch (e) { lines = []; }
+  if (!Array.isArray(lines)) lines = [];
+  let cost = 0;
+  for (const it of lines) {
+    if (!it || typeof it !== 'object') continue;
+    const qty = Number(it.qty) || 0;
+    if (qty <= 0) continue;
+    const hpp = it.hpp !== undefined ? (Number(it.hpp) || 0) : (it.client_id ? (hppMap[it.client_id] || 0) : 0);
+    cost += qty * hpp;
+  }
+  return Math.round((Number(total) || 0) - cost);
+}
+
 router.get('/sales', (req, res) => {
   const { search, from, to } = req.query;
   let sql = 'SELECT * FROM sales WHERE deleted = 0';
@@ -967,7 +1002,17 @@ router.get('/sales', (req, res) => {
   if (from) { sql += ' AND date >= ?'; params.push(from); }
   if (to) { sql += ' AND date <= ?'; params.push(to); }
   sql += ' ORDER BY id DESC';
-  res.json(all(req, sql, params));
+  const hppMap = productHppMap(req);
+  res.json(all(req, sql, params).map(r => {
+    const laba = saleLaba(r.total, r.items, hppMap);
+    return {
+      ...r,
+      laba,
+      margin: (Number(r.total) || 0) > 0
+        ? Math.round(laba * 100 / (Number(r.total) || 0) * 10) / 10
+        : 0
+    };
+  }));
 });
 
 router.get('/sales/:id', (req, res) => {
