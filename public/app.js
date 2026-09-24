@@ -1647,7 +1647,8 @@ function addToCart(pid) {
       client_id: p.client_id,
       name: p.name,
       qty: qty,
-      price: Number(p.price) || 0
+      price: Number(p.price) || 0,
+      hpp: Number(p.hpp) || 0
     });
   }
   renderCart();
@@ -1728,7 +1729,8 @@ async function saveSale() {
       client_id: it.client_id,
       name: it.name,
       qty: it.qty,
-      price: it.price
+      price: it.price,
+      hpp: it.hpp || 0
     })),
     customer_name: document.getElementById('cart-customer').value,
     customer_phone: document.getElementById('cart-phone').value,
@@ -1789,7 +1791,7 @@ async function loadKasirProducts() {
 function renderProdukTable(list) {
   const tbody = document.querySelector('#produk-table tbody');
   if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="5" class="empty-state"><p>Belum ada produk</p></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="empty-state"><p>Belum ada produk</p></td></tr>`;
     return;
   }
   tbody.innerHTML = list.map(p => `
@@ -1797,6 +1799,7 @@ function renderProdukTable(list) {
       <td><strong>${escapeHtml(p.name)}</strong></td>
       <td>${escapeHtml(p.category || '-')}</td>
       <td>${formatRupiah(p.price)}</td>
+      <td>${formatRupiah(p.hpp || 0)}</td>
       <td>${p.stock}</td>
       <td>
         <div class="btn-group">
@@ -1814,6 +1817,7 @@ function resetProdukForm() {
   document.getElementById('produk-name').value = '';
   document.getElementById('produk-category').value = '';
   document.getElementById('produk-price').value = '0';
+  document.getElementById('produk-hpp').value = '0';
   document.getElementById('produk-stock').value = '0';
   document.getElementById('produk-form-title').textContent = 'Tambah Produk';
   document.getElementById('produk-reset').style.display = 'none';
@@ -1827,6 +1831,7 @@ async function saveProduk() {
     name: name,
     category: document.getElementById('produk-category').value.trim(),
     price: parseRupiah(document.getElementById('produk-price').value),
+    hpp: parseRupiah(document.getElementById('produk-hpp').value),
     stock: parseRupiah(document.getElementById('produk-stock').value)
   };
   try {
@@ -1852,6 +1857,7 @@ function editProduk(id) {
   document.getElementById('produk-name').value = p.name;
   document.getElementById('produk-category').value = p.category || '';
   document.getElementById('produk-price').value = numId(p.price);
+  document.getElementById('produk-hpp').value = numId(p.hpp || 0);
   document.getElementById('produk-stock').value = numId(p.stock);
   document.getElementById('produk-form-title').textContent = 'Edit Produk';
   document.getElementById('produk-reset').style.display = '';

@@ -97,6 +97,7 @@ async function init(tenant) {
       name TEXT NOT NULL,
       category TEXT DEFAULT '',
       price REAL DEFAULT 0,
+      hpp REAL DEFAULT 0,
       stock REAL DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now','localtime')),
       updated_at TEXT DEFAULT (datetime('now','localtime')),
@@ -147,6 +148,10 @@ async function init(tenant) {
   if (!cols.includes('discount_type')) db.run("ALTER TABLE receipts ADD COLUMN discount_type TEXT DEFAULT ''");
   if (!cols.includes('discount_value')) db.run('ALTER TABLE receipts ADD COLUMN discount_value REAL DEFAULT 0');
   if (!cols.includes('discount_note')) db.run("ALTER TABLE receipts ADD COLUMN discount_note TEXT DEFAULT ''");
+
+  // Migrasi HPP (harga beli) produk
+  const pcols = db.exec('PRAGMA table_info(products)')[0]?.values.map(r => r[1]) || [];
+  if (!pcols.includes('hpp')) db.run('ALTER TABLE products ADD COLUMN hpp REAL DEFAULT 0');
 
   const defaults = {
     shop_name: tenant.shop_name || 'Service Center',

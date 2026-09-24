@@ -865,31 +865,31 @@ router.get('/products/:id', (req, res) => {
 });
 
 router.post('/products', (req, res) => {
-  const { name, category, price, stock } = req.body || {};
+  const { name, category, price, hpp, stock } = req.body || {};
   if (!name || !String(name).trim()) return res.status(400).json({ error: 'Nama produk wajib diisi' });
   runq(req, `
-    INSERT INTO products (client_id, name, category, price, stock)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO products (client_id, name, category, price, hpp, stock)
+    VALUES (?, ?, ?, ?, ?, ?)
   `, [
     crypto.randomUUID(), String(name).trim(), String(category || '').trim(),
-    Number(price) || 0, Number(stock) || 0
+    Number(price) || 0, Number(hpp) || 0, Number(stock) || 0
   ]);
   const row = one(req, 'SELECT * FROM products WHERE id = last_insert_rowid()');
   res.status(201).json(row);
 });
 
 router.put('/products/:id', (req, res) => {
-  const { name, category, price, stock } = req.body || {};
+  const { name, category, price, hpp, stock } = req.body || {};
   if (!name || !String(name).trim()) return res.status(400).json({ error: 'Nama produk wajib diisi' });
   const before = one(req, 'SELECT id FROM products WHERE id = ?', [parseInt(req.params.id)]);
   if (!before) return res.status(404).json({ error: 'Tidak ditemukan' });
   runq(req, `
-    UPDATE products SET name = ?, category = ?, price = ?, stock = ?,
+    UPDATE products SET name = ?, category = ?, price = ?, hpp = ?, stock = ?,
       updated_at = datetime('now','localtime'), deleted = 0
     WHERE id = ?
   `, [
     String(name).trim(), String(category || '').trim(),
-    Number(price) || 0, Number(stock) || 0, parseInt(req.params.id)
+    Number(price) || 0, Number(hpp) || 0, Number(stock) || 0, parseInt(req.params.id)
   ]);
   const row = one(req, 'SELECT * FROM products WHERE id = ?', [parseInt(req.params.id)]);
   res.json(row);
@@ -939,6 +939,22 @@ function reduceStockForSale(req, items) {
   }
 }
 
+// Isi hpp (harga beli) pada tiap item penjualan bila belum disertakan
+function snapshotHpp(req, items) {
+  const out = [];
+  for (const it of Array.isArray(items) ? items : []) {
+    if (!it) continue;
+    if (it.hpp !== undefined) { out.push({ ...it, hpp: Number(it.hpp) || 0 }); continue; }
+    let hpp = 0;
+    if (it.client_id) {
+      const p = one(req, 'SELECT hpp FROM products WHERE client_id = ?', [it.client_id]);
+      hpp = p ? Number(p.hpp) || 0 : 0;
+    }
+    out.push({ ...it, hpp });
+  }
+  return out;
+}
+
 router.get('/sales', (req, res) => {
   const { search, from, to } = req.query;
   let sql = 'SELECT * FROM sales WHERE deleted = 0';
@@ -969,7 +985,8 @@ router.post('/sales', (req, res) => {
   if (!Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: 'Keranjang masih kosong' });
   }
-  const { subtotal, disc, total } = saleAmounts(items, discount_type, discount_value);
+  const enrItems = snapshotHpp(req, items);
+  const { subtotal, disc, total } = saleAmounts(enrItems, discount_type, discount_value);
   const isLunas = payment_status === 'hutang' ? false : true;
   const paidAmt = isLunas ? Math.max(0, Number(paid) || 0) : 0;
   const change = isLunas && paidAmt >= total ? paidAmt - total : 0;
@@ -986,14 +1003,14 @@ router.post('/sales', (req, res) => {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     saleNumber, String(customer_name || ''), String(customer_phone || ''),
-    JSON.stringify(items), saleDate,
+    JSON.stringify(enrItems), saleDate,
     subtotal, discount_type || '', discount_value || 0, discount_note || '',
     total, paidAmt, change,
     isLunas ? 'lunas' : 'hutang', isLunas ? (settle_method || 'cash') : '',
     isLunas ? '' : String(due_date || ''), isLunas ? now : '',
     crypto.randomUUID()
   ]);
-  reduceStockForSale(req, items);
+  reduceStockForSale(req, enrItems);
 
   const row = one(req, 'SELECT * FROM sales WHERE sale_number = ?', [saleNumber]);
   res.status(201).json(row);
@@ -1007,7 +1024,7 @@ router.put('/sales/:id', (req, res) => {
   } = req.body || {};
   const before = one(req, 'SELECT id FROM sales WHERE id = ?', [parseInt(req.params.id)]);
   if (!before) return res.status(404).json({ error: 'Tidak ditemukan' });
-  const lines = Array.isArray(items) ? items : [];
+  const lines = snapshotHpp(req, Array.isArray(items) ? items : []);
   const { subtotal, disc, total } = saleAmounts(lines, discount_type, discount_value);
   const isLunas = payment_status === 'hutang' ? false : true;
   const paidAmt = isLunas ? Math.max(0, Number(paid) || 0) : 0;
@@ -1141,13 +1158,13 @@ router.post('/sync/products/push', (req, res) => {
     if (!d.name) continue;
     const exist = one(req, 'SELECT id FROM products WHERE client_id = ?', [c.client_id]);
     if (exist) {
-      runq(req, `UPDATE products SET name = ?, category = ?, price = ?, stock = ?, deleted = 0,
+      runq(req, `UPDATE products SET name = ?, category = ?, price = ?, hpp = ?, stock = ?, deleted = 0,
           updated_at = datetime('now','localtime') WHERE client_id = ?`,
-        [d.name, d.category || '', d.price || 0, d.stock || 0, c.client_id]);
+        [d.name, d.category || '', d.price || 0, d.hpp || 0, d.stock || 0, c.client_id]);
     } else {
-      runq(req, `INSERT INTO products (client_id, name, category, price, stock)
-          VALUES (?, ?, ?, ?, ?)`,
-        [c.client_id, d.name, d.category || '', d.price || 0, d.stock || 0]);
+      runq(req, `INSERT INTO products (client_id, name, category, price, hpp, stock)
+          VALUES (?, ?, ?, ?, ?, ?)`,
+        [c.client_id, d.name, d.category || '', d.price || 0, d.hpp || 0, d.stock || 0]);
     }
   }
   const since = (req.body && req.body.since) || '';
