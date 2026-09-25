@@ -1609,8 +1609,10 @@ function switchKasirTab(tab) {
     b.classList.toggle('active', b.dataset.tab === tab));
   document.getElementById('ktab-kasir').style.display = tab === 'kasir' ? '' : 'none';
   document.getElementById('ktab-produk').style.display = tab === 'produk' ? '' : 'none';
+  document.getElementById('ktab-pelanggan').style.display = tab === 'pelanggan' ? '' : 'none';
   document.getElementById('ktab-riwayat').style.display = tab === 'riwayat' ? '' : 'none';
   if (tab === 'produk') loadKasirProducts();
+  if (tab === 'pelanggan') loadCustomers();
   if (tab === 'riwayat') loadSales();
 }
 
@@ -1916,6 +1918,126 @@ document.getElementById('produk-save').addEventListener('click', saveProduk);
 document.getElementById('produk-reset').addEventListener('click', resetProdukForm);
 document.getElementById('kasir-search').addEventListener('input', debounce(() => loadKasirProducts(), 300));
 
+// ============ DATA PELANGGAN ============
+let customers = [];
+const fCustPick = document.getElementById('f-cust-pick');
+const cartCustPick = document.getElementById('cart-cust-pick');
+
+async function loadCustomers() {
+  try {
+    customers = await (await fetch(`${API}/customers`)).json();
+    fillCustPicks();
+    renderPelangganTable();
+  } catch (err) {
+    showToast('Gagal memuat pelanggan', 'error');
+  }
+}
+
+function fillCustPicks() {
+  const opts = customers.map(c => `<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)}${c.phone ? ' — ' + escapeHtml(c.phone) : ''}</option>`).join('');
+  if (fCustPick) fCustPick.innerHTML = '<option value="">-- Pilih / ketik manual --</option>' + opts;
+  if (cartCustPick) cartCustPick.innerHTML = '<option value="">-- Pilih / ketik manual --</option>' + opts;
+}
+
+function renderPelangganTable() {
+  const tbody = document.querySelector('#pelanggan-table tbody');
+  if (!customers.length) {
+    tbody.innerHTML = `<tr><td colspan="5" class="empty-state"><p>Tidak ada pelanggan. Tambahkan lewat form di atas.</p></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = customers.map(p => `
+    <tr>
+      <td>${escapeHtml(p.name)}</td>
+      <td>${escapeHtml(p.phone || '')}</td>
+      <td>${escapeHtml(p.address || '')}</td>
+      <td>${escapeHtml(p.notes || '')}</td>
+      <td>
+        <button class="btn-action" onclick="editPelanggan(${p.id})">✏️ Edit</button>
+        <button class="btn-action danger" onclick="deletePelanggan(${p.id})">🗑️ Hapus</button>
+      </td>
+    </tr>`).join('');
+}
+
+function resetPelangganForm() {
+  document.getElementById('pelanggan-id').value = '';
+  document.getElementById('pelanggan-name').value = '';
+  document.getElementById('pelanggan-phone').value = '';
+  document.getElementById('pelanggan-address').value = '';
+  document.getElementById('pelanggan-notes').value = '';
+  document.getElementById('pelanggan-form-title').textContent = 'Tambah Pelanggan';
+  document.getElementById('pelanggan-reset').style.display = 'none';
+}
+
+async function savePelanggan() {
+  const id = document.getElementById('pelanggan-id').value;
+  const body = {
+    name: document.getElementById('pelanggan-name').value.trim(),
+    phone: document.getElementById('pelanggan-phone').value.trim(),
+    address: document.getElementById('pelanggan-address').value.trim(),
+    notes: document.getElementById('pelanggan-notes').value.trim()
+  };
+  if (!body.name) { showToast('Nama pelanggan wajib diisi', 'error'); return; }
+  try {
+    if (id) {
+      await fetch(`${API}/customers/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      showToast('Pelanggan diperbarui');
+    } else {
+      await fetch(`${API}/customers`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      showToast('Pelanggan ditambahkan');
+    }
+    resetPelangganForm();
+    loadCustomers();
+  } catch (err) {
+    showToast('Gagal menyimpan pelanggan', 'error');
+  }
+}
+
+function editPelanggan(id) {
+  const p = customers.find(c => c.id === id);
+  if (!p) return;
+  document.getElementById('pelanggan-id').value = p.id;
+  document.getElementById('pelanggan-name').value = p.name;
+  document.getElementById('pelanggan-phone').value = p.phone || '';
+  document.getElementById('pelanggan-address').value = p.address || '';
+  document.getElementById('pelanggan-notes').value = p.notes || '';
+  document.getElementById('pelanggan-form-title').textContent = 'Edit Pelanggan';
+  document.getElementById('pelanggan-reset').style.display = '';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+async function deletePelanggan(id) {
+  if (!confirm('Yakin ingin menghapus pelanggan ini?')) return;
+  try {
+    await fetch(`${API}/customers/${id}`, { method: 'DELETE' });
+    showToast('Pelanggan dihapus');
+    loadCustomers();
+  } catch (err) {
+    showToast('Gagal menghapus pelanggan', 'error');
+  }
+}
+
+document.getElementById('pelanggan-save').addEventListener('click', savePelanggan);
+document.getElementById('pelanggan-reset').addEventListener('click', resetPelangganForm);
+
+if (fCustPick) {
+  fCustPick.addEventListener('change', () => {
+    const p = customers.find(c => c.name === fCustPick.value);
+    if (!p) return;
+    document.getElementById('f-customer_name').value = p.name;
+    document.getElementById('f-customer_phone').value = p.phone || '';
+    document.getElementById('f-customer_address').value = p.address || '';
+  });
+}
+
+if (cartCustPick) {
+  cartCustPick.addEventListener('change', () => {
+    const p = customers.find(c => c.name === cartCustPick.value);
+    if (!p) return;
+    document.getElementById('cart-customer').value = p.name;
+    document.getElementById('cart-phone').value = p.phone || '';
+  });
+}
+
 // ---------- Riwayat Jualan ----------
 async function loadSales() {
   const from = document.getElementById('sale-from').value;
@@ -2184,6 +2306,7 @@ async function init() {
       if (data.subscription) renderSubBanner(data.subscription);
       showApp();
       hideLogin();
+      loadCustomers();
       if (data.subscription && (data.subscription.effective_status === 'expired' || data.subscription.effective_status === 'suspended')) {
         loadDashboard();
         openSubOverlay();

@@ -150,6 +150,7 @@
       <div class="kasir-tabs receipt-tabs" id="kasir-tabs">
         <button class="tab-btn active" data-tab="kasir">🛒 Jual</button>
         <button class="tab-btn" data-tab="produk">📦 Produk</button>
+        <button class="tab-btn" data-tab="pelanggan">👤 Pelanggan</button>
         <button class="tab-btn" data-tab="riwayat">🧾 Riwayat Jualan</button>
       </div>
 
@@ -238,6 +239,12 @@
               <label>Jatuh Tempo (jika Hutang)</label>
               <input type="date" id="cart-due">
             </div>
+            <div class="form-group">
+              <label>Pilih Pelanggan (opsional)</label>
+              <select id="cart-cust-pick">
+                <option value="">-- Pilih / ketik manual --</option>
+              </select>
+            </div>
             <div class="form-row">
               <div class="form-group">
                 <label>Nama Pelanggan</label>
@@ -305,6 +312,50 @@
                 <th>Harga Jual</th>
                 <th>HPP</th>
                 <th>Stok</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tab Pelanggan -->
+      <div id="ktab-pelanggan" style="display:none">
+        <div class="form-card produkt-form" id="pelanggan-form-card">
+          <h4 id="pelanggan-form-title">Tambah Pelanggan</h4>
+          <input type="hidden" id="pelanggan-id">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Nama Pelanggan *</label>
+              <input type="text" id="pelanggan-name" required>
+            </div>
+            <div class="form-group">
+              <label>Telepon</label>
+              <input type="text" id="pelanggan-phone" placeholder="cth: 0812xxxx">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Alamat</label>
+            <input type="text" id="pelanggan-address" placeholder="Alamat lengkap">
+          </div>
+          <div class="form-group">
+            <label>Catatan</label>
+            <input type="text" id="pelanggan-notes" placeholder="cth: Langganan tetap / garansi">
+          </div>
+          <div class="form-actions" style="justify-content:flex-start">
+            <button type="button" class="btn btn-primary" id="pelanggan-save">Simpan</button>
+            <button type="button" class="btn btn-secondary" id="pelanggan-reset" style="display:none">Batal Edit</button>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table id="pelanggan-table">
+            <thead>
+              <tr>
+                <th>Nama</th>
+                <th>Telepon</th>
+                <th>Alamat</th>
+                <th>Catatan</th>
                 <th>Aksi</th>
               </tr>
             </thead>
@@ -485,6 +536,12 @@
           <label>Alamat</label>
           <input type="text" id="f-customer_address">
         </div>
+        <div class="form-group">
+          <label>Pilih Pelanggan Tersimpan (opsional)</label>
+          <select id="f-cust-pick">
+            <option value="">-- Pilih / ketik manual --</option>
+          </select>
+        </div>
 
         <h4 class="form-section-title">Data Device</h4>
         <div class="form-row">
@@ -648,6 +705,6 @@
     <div id="print-content"></div>
   </div>
 
-  <script src="app.js?v=30"></script>
+  <script src="app.js?v=31"></script>
 </body>
 </html>

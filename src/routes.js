@@ -926,6 +926,58 @@ router.delete('/products/:id', (req, res) => {
 });
 
 // ============================================================
+//  DATA PELANGGAN (master)
+// ============================================================
+router.get('/customers', (req, res) => {
+  res.json(all(req, "SELECT * FROM customers WHERE deleted = 0 ORDER BY name COLLATE NOCASE"));
+});
+
+router.get('/customers/:id', (req, res) => {
+  const row = one(req, 'SELECT * FROM customers WHERE id = ? AND deleted = 0', [parseInt(req.params.id)]);
+  if (!row) return res.status(404).json({ error: 'Tidak ditemukan' });
+  res.json(row);
+});
+
+router.post('/customers', (req, res) => {
+  const { name, phone, address, notes } = req.body || {};
+  if (!name || !String(name).trim()) return res.status(400).json({ error: 'Nama pelanggan wajib diisi' });
+  runq(req, `
+    INSERT INTO customers (client_id, name, phone, address, notes)
+    VALUES (?, ?, ?, ?, ?)
+  `, [
+    crypto.randomUUID(), String(name).trim(), String(phone || '').trim(),
+    String(address || '').trim(), String(notes || '').trim()
+  ]);
+  const row = one(req, 'SELECT * FROM customers WHERE id = last_insert_rowid()');
+  res.status(201).json(row);
+});
+
+router.put('/customers/:id', (req, res) => {
+  const { name, phone, address, notes } = req.body || {};
+  if (!name || !String(name).trim()) return res.status(400).json({ error: 'Nama pelanggan wajib diisi' });
+  const before = one(req, 'SELECT id FROM customers WHERE id = ?', [parseInt(req.params.id)]);
+  if (!before) return res.status(404).json({ error: 'Tidak ditemukan' });
+  runq(req, `
+    UPDATE customers SET name = ?, phone = ?, address = ?, notes = ?,
+      updated_at = datetime('now','localtime'), deleted = 0
+    WHERE id = ?
+  `, [
+    String(name).trim(), String(phone || '').trim(), String(address || '').trim(),
+    String(notes || '').trim(), parseInt(req.params.id)
+  ]);
+  const row = one(req, 'SELECT * FROM customers WHERE id = ?', [parseInt(req.params.id)]);
+  res.json(row);
+});
+
+router.delete('/customers/:id', (req, res) => {
+  const before = one(req, 'SELECT id FROM customers WHERE id = ?', [parseInt(req.params.id)]);
+  if (!before) return res.status(404).json({ error: 'Tidak ditemukan' });
+  runq(req, "UPDATE customers SET deleted = 1, updated_at = datetime('now','localtime') WHERE id = ?",
+    [parseInt(req.params.id)]);
+  res.json({ success: true });
+});
+
+// ============================================================
 //  MODUL KASIR: PENJUALAN
 // ============================================================
 function saleAmounts(items, discountType, discountValue) {
@@ -1238,6 +1290,62 @@ router.post('/sync/products/fetch', (req, res) => {
 
 router.get('/sync/products/all', (req, res) => {
   res.json(all(req, 'SELECT * FROM products WHERE client_id IS NOT NULL AND deleted = 0'));
+});
+
+router.get('/sync/customers/pull', (req, res) => {
+  const since = req.query.since || '';
+  const where = since ? 'WHERE (updated_at > ? OR deleted = 1) ORDER BY updated_at ASC' : 'ORDER BY id ASC';
+  const params = since ? [since] : [];
+  res.json(all(req, `SELECT id, client_id, deleted, updated_at FROM customers ${where}`, params));
+});
+
+router.post('/sync/customers/push', (req, res) => {
+  const { changes } = req.body || {};
+  if (!Array.isArray(changes)) return res.status(400).json({ error: 'changes harus array' });
+  for (const c of changes) {
+    if (!c || !c.client_id) continue;
+    if (c.action === 'delete') {
+      runq(req, "UPDATE customers SET deleted = 1, updated_at = datetime('now','localtime') WHERE client_id = ?", [c.client_id]);
+      continue;
+    }
+    const d = c.data || {};
+    if (!d.name) continue;
+    const exist = one(req, 'SELECT id FROM customers WHERE client_id = ?', [c.client_id]);
+    if (exist) {
+      runq(req, `UPDATE customers SET name = ?, phone = ?, address = ?, notes = ?, deleted = 0,
+          updated_at = datetime('now','localtime') WHERE client_id = ?`,
+        [d.name, d.phone || '', d.address || '', d.notes || '', c.client_id]);
+    } else {
+      runq(req, `INSERT INTO customers (client_id, name, phone, address, notes)
+          VALUES (?, ?, ?, ?, ?)`,
+        [c.client_id, d.name, d.phone || '', d.address || '', d.notes || '']);
+    }
+  }
+  const since = (req.body && req.body.since) || '';
+  const where = since ? 'WHERE (updated_at > ? OR deleted = 1) ORDER BY updated_at ASC' : 'ORDER BY id ASC';
+  const params = since ? [since] : [];
+  res.json(all(req, `SELECT id, client_id, deleted, updated_at FROM customers ${where}`, params));
+});
+
+router.get('/sync/customers/fetch/:clientId', (req, res) => {
+  const row = one(req, 'SELECT * FROM customers WHERE client_id = ?', [req.params.clientId]);
+  if (!row) return res.status(404).json({ error: 'Tidak ditemukan' });
+  res.json({ ...row });
+});
+
+router.post('/sync/customers/fetch', (req, res) => {
+  const ids = (req.body && req.body.ids) || [];
+  const out = [];
+  for (const cid of Array.isArray(ids) ? ids : []) {
+    if (!cid) continue;
+    const row = one(req, 'SELECT * FROM customers WHERE client_id = ?', [cid]);
+    if (row && !row.deleted) out.push(row);
+  }
+  res.json(out);
+});
+
+router.get('/sync/customers/all', (req, res) => {
+  res.json(all(req, 'SELECT * FROM customers WHERE client_id IS NOT NULL AND deleted = 0'));
 });
 
 router.get('/sync/sales/pull', (req, res) => {

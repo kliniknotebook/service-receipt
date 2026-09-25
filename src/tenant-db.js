@@ -107,6 +107,20 @@ async function init(tenant) {
     )
   `);
   db.run(`
+    CREATE TABLE IF NOT EXISTS customers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id TEXT UNIQUE,
+      name TEXT NOT NULL,
+      phone TEXT DEFAULT '',
+      address TEXT DEFAULT '',
+      notes TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now','localtime')),
+      updated_at TEXT DEFAULT (datetime('now','localtime')),
+      synced_at TEXT,
+      deleted INTEGER DEFAULT 0
+    )
+  `);
+  db.run(`
     CREATE TABLE IF NOT EXISTS sales (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       sale_number TEXT UNIQUE NOT NULL,
