@@ -122,6 +122,25 @@ function statusBadge(status) {
   return `<span class="status-badge status-${status}">${labels[status] || status}</span>`;
 }
 
+function garansiCell(r) {
+  const months = Number(r.garansi_bulan) || 0;
+  const take = r.tanggal_ambil || '';
+  if (!take) {
+    return `<span class="g-badge g-pending">Belum Diambil</span>`;
+  }
+  if (months <= 0) {
+    return `<span class="g-badge g-none">Tanpa Garansi</span>`;
+  }
+  const d = new Date(take + 'T00:00:00');
+  const until = new Date(d.getTime());
+  until.setMonth(until.getMonth() + months);
+  const untilISO = new Date(until.getTime() - until.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  if (untilISO < todayISO()) {
+    return `<span class="g-badge g-expired">Garansi Habis · ${fmtDateStr(untilISO)}</span>`;
+  }
+  return `<span class="g-badge g-active">Masih Garansi · s/d ${fmtDateStr(untilISO)}</span>`;
+}
+
 function fmtDateStr(s) {
   if (!s) return '';
   const p = String(s).split('-');
@@ -308,7 +327,7 @@ async function loadReceipts() {
     const tbody = document.querySelector('#receipts-table tbody');
 
     if (receipts.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="12" class="empty-state"><div class="empty-icon">📋</div><p>Tidak ada data ditemukan</p></td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="13" class="empty-state"><div class="empty-icon">📋</div><p>Tidak ada data ditemukan</p></td></tr>`;
       return;
     }
 
@@ -323,8 +342,9 @@ async function loadReceipts() {
         <td>${formatRupiah(r.estimated_cost)}</td>
         <td>${formatRupiah(discountAmount(r))}</td>
         <td>${formatRupiah(r.down_payment)}</td>
-        <td>${paymentBadge(r)}</td>
         <td>${statusBadge(r.status)}</td>
+        <td>${paymentBadge(r)}</td>
+        <td>${garansiCell(r)}</td>
         <td>
           <div class="btn-group">
             <button class="btn btn-sm btn-secondary" onclick="editReceipt(${r.id})" title="Edit">✏️</button>
@@ -383,6 +403,18 @@ function toggleDeliveryGroup() {
   grp.style.display = on ? '' : 'none';
 }
 document.getElementById('f-status').addEventListener('change', toggleDeliveryGroup);
+
+// Tanggal Diambil: otomatis terisi saat status Diambil (dipakai untuk hitung garansi)
+function syncTanggalAmbil() {
+  const st = document.getElementById('f-status').value;
+  const ta = document.getElementById('f-tanggal_ambil');
+  if (st === 'diambil' && !ta.value) {
+    ta.value = todayISO();
+  } else if (st !== 'diambil') {
+    ta.value = '';
+  }
+}
+document.getElementById('f-status').addEventListener('change', syncTanggalAmbil);
 
 // Preview sisa bayar setelah diskon di form
 function updateSisaHint() {
@@ -456,6 +488,8 @@ function openModal(data = null) {
     document.getElementById('f-due_date').value = data.due_date || '';
     document.getElementById('f-settle_method').value = data.settle_method || '';
     document.getElementById('f-settle_date').value = data.settle_date || '';
+    document.getElementById('f-garansi_bulan').value = data.garansi_bulan || 0;
+    document.getElementById('f-tanggal_ambil').value = data.tanggal_ambil || '';
   } else {
     document.getElementById('modal-title').textContent = 'Tanda Terima Baru';
     document.getElementById('f-receipt_number').value = '(auto)';
@@ -464,10 +498,13 @@ function openModal(data = null) {
     document.getElementById('f-due_date').value = '';
     document.getElementById('f-settle_method').value = '';
     document.getElementById('f-settle_date').value = '';
+    document.getElementById('f-garansi_bulan').value = 0;
+    document.getElementById('f-tanggal_ambil').value = '';
     document.getElementById('f-create-more').checked = true;
   }
   toggleSettleFields();
   toggleDeliveryGroup();
+  syncTanggalAmbil();
   editingPrevStatus = data ? (data.status || '') : null;
   editingPrevPay = data ? (data.payment_status || '') : null;
   updateSisaHint();
@@ -508,7 +545,9 @@ document.getElementById('receipt-form').addEventListener('submit', async (e) => 
     discount_type: document.getElementById('f-discount_type').value,
     discount_value: parseRupiah(document.getElementById('f-discount_value').value),
     discount_note: document.getElementById('f-discount_note').value,
-    status: document.getElementById('f-status').value
+    status: document.getElementById('f-status').value,
+    garansi_bulan: Number(document.getElementById('f-garansi_bulan').value) || 0,
+    tanggal_ambil: document.getElementById('f-tanggal_ambil').value || ''
   };
 
   const payStatus = document.getElementById('f-payment_status').value;

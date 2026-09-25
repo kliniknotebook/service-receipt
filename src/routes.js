@@ -21,6 +21,11 @@ function dueDateTo(ps, dd) {
   return ps === 'hutang' ? String(dd || '') : '';
 }
 
+function todayISODate() {
+  const d = new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+
 // Nominal diskon dari data nota ('percent' = % dari estimasi, 'rp' = rupiah)
 function discountAmount(est, type, val) {
   const e = Number(est) || 0;
@@ -424,12 +429,16 @@ router.post('/sync/push', (req, res) => {
       const dd = dueDateTo(ps, d.due_date);
       const exist = one(req, 'SELECT id FROM receipts WHERE client_id = ?', [c.client_id]);
       if (exist) {
+        const takeDate = d.status === 'diambil'
+          ? (d.tanggal_ambil || (exist.tanggal_ambil || todayISODate()))
+          : (d.tanggal_ambil || '');
         runq(req, `UPDATE receipts SET
             customer_name = ?, customer_phone = ?, customer_address = ?,
             device_type = ?, device_brand = ?, device_model = ?, device_serial = ?,
             complaint = ?, notes = ?, delivery_note = ?, estimated_cost = ?, down_payment = ?,
             discount_type = ?, discount_value = ?, discount_note = ?,
             status = ?, payment_status = ?, due_date = ?, settle_date = ?, settle_method = ?,
+            garansi_bulan = ?, tanggal_ambil = ?,
             deleted = 0, updated_at = datetime('now','localtime')
           WHERE client_id = ?`, [
           d.customer_name || '', d.customer_phone || '', d.customer_address || '',
@@ -439,6 +448,7 @@ router.post('/sync/push', (req, res) => {
           d.discount_type || '', d.discount_value || 0, d.discount_note || '',
           d.status || 'diterima',
           ps, dd, d.settle_date || '', d.settle_method || '',
+          d.garansi_bulan || 0, takeDate,
           c.client_id
         ]);
       } else {
@@ -448,6 +458,9 @@ router.post('/sync/push', (req, res) => {
         const existing = one(req,
           `SELECT id FROM receipts WHERE receipt_number = ?`, [rnum]);
         if (existing) {
+          const takeDate = d.status === 'diambil'
+            ? (d.tanggal_ambil || todayISODate())
+            : (d.tanggal_ambil || '');
           runq(req, `UPDATE receipts SET
               client_id = ?, deleted = 0,
               customer_name = ?, customer_phone = ?, customer_address = ?,
@@ -457,6 +470,7 @@ router.post('/sync/push', (req, res) => {
               discount_type = ?, discount_value = ?, discount_note = ?,
               status = ?,
               payment_status = ?, due_date = ?, settle_date = ?, settle_method = ?,
+              garansi_bulan = ?, tanggal_ambil = ?,
               updated_at = datetime('now','localtime')
             WHERE id = ?`, [
             c.client_id,
@@ -467,17 +481,21 @@ router.post('/sync/push', (req, res) => {
             d.discount_type || '', d.discount_value || 0, d.discount_note || '',
             d.status || 'diterima',
             ps, dd, d.settle_date || '', d.settle_method || '',
+            d.garansi_bulan || 0, takeDate,
             existing.id
           ]);
         } else {
+          const takeDate = d.status === 'diambil'
+            ? (d.tanggal_ambil || todayISODate())
+            : (d.tanggal_ambil || '');
           runq(req, `INSERT INTO receipts
             (receipt_number, client_id, customer_name, customer_phone, customer_address,
              device_type, device_brand, device_model, device_serial, complaint, notes,
              delivery_note, estimated_cost, down_payment,
              discount_type, discount_value, discount_note,
              status, payment_status, due_date,
-             settle_date, settle_method)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+             settle_date, settle_method, garansi_bulan, tanggal_ambil)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
             rnum, c.client_id,
             d.customer_name || '', d.customer_phone || '', d.customer_address || '',
             d.device_type || '', d.device_brand || '', d.device_model || '', d.device_serial || '',
@@ -485,7 +503,8 @@ router.post('/sync/push', (req, res) => {
             d.estimated_cost || 0, d.down_payment || 0,
             d.discount_type || '', d.discount_value || 0, d.discount_note || '',
             d.status || 'diterima',
-            ps, dd, d.settle_date || '', d.settle_method || ''
+            ps, dd, d.settle_date || '', d.settle_method || '',
+            d.garansi_bulan || 0, takeDate
           ]);
         }
       }
@@ -536,9 +555,9 @@ router.get('/receipts', (req, res) => {
   let sql = 'SELECT * FROM receipts WHERE deleted = 0';
   const params = [];
   if (search) {
-    sql += ' AND (receipt_number LIKE ? OR customer_name LIKE ? OR customer_phone LIKE ?)';
+    sql += ' AND (receipt_number LIKE ? OR customer_name LIKE ? OR customer_phone LIKE ? OR device_type LIKE ? OR device_brand LIKE ? OR device_model LIKE ? OR device_serial LIKE ?)';
     const s = `%${search}%`;
-    params.push(s, s, s);
+    params.push(s, s, s, s, s, s, s);
   }
   if (status && status !== 'semua') {
     sql += ' AND status = ?';
@@ -568,7 +587,8 @@ router.post('/receipts', (req, res) => {
     device_type, device_brand, device_model, device_serial,
     complaint, notes, delivery_note, estimated_cost, down_payment, status,
     discount_type, discount_value, discount_note,
-    payment_status, due_date, settle_date, settle_method
+    payment_status, due_date, settle_date, settle_method,
+    garansi_bulan, tanggal_ambil
   } = req.body;
 
   const payStatus = paymentStatusTo(payment_status);
@@ -579,20 +599,23 @@ router.post('/receipts', (req, res) => {
     return res.status(400).json({ error: 'Status Lunas wajib mengisi Dibayar Via dan Tanggal Lunas' });
   }
   const dd = dueDateTo(payStatus, due_date);
+  const finalTakeDate = status === 'diambil' ? (tanggal_ambil || todayISODate()) : (tanggal_ambil || '');
 
   runq(req, `
     INSERT INTO receipts (receipt_number, client_id, customer_name, customer_phone, customer_address,
       device_type, device_brand, device_model, device_serial, complaint, notes, delivery_note,
       discount_type, discount_value, discount_note,
-      estimated_cost, down_payment, status, payment_status, due_date, settle_date, settle_method)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      estimated_cost, down_payment, status, payment_status, due_date, settle_date, settle_method,
+      garansi_bulan, tanggal_ambil)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     receipt_number, client_id, customer_name, customer_phone || '', customer_address || '',
     device_type || '', device_brand || '', device_model || '', device_serial || '',
     complaint || '', notes || '', delivery_note || '',
     discount_type || '', discount_value || 0, discount_note || '',
     estimated_cost || 0, down_payment || 0, status || 'diterima', payStatus, dd,
-    settle_date || '', settle_method || ''
+    settle_date || '', settle_method || '',
+    garansi_bulan || 0, finalTakeDate
   ]);
 
   const row = one(req, 'SELECT * FROM receipts WHERE receipt_number = ?', [receipt_number]);
@@ -606,7 +629,8 @@ router.put('/receipts/:id', (req, res) => {
     device_type, device_brand, device_model, device_serial,
     complaint, notes, delivery_note, estimated_cost, down_payment, status,
     discount_type, discount_value, discount_note,
-    payment_status, due_date, settle_date, settle_method
+    payment_status, due_date, settle_date, settle_method,
+    garansi_bulan, tanggal_ambil
   } = req.body;
 
   const payStatus = paymentStatusTo(payment_status);
@@ -618,6 +642,11 @@ router.put('/receipts/:id', (req, res) => {
   }
   const dd = dueDateTo(payStatus, due_date);
 
+  const prev = one(req, 'SELECT * FROM receipts WHERE id = ?', [parseInt(req.params.id)]);
+  const finalTakeDate = status === 'diambil'
+    ? (tanggal_ambil || (prev && prev.tanggal_ambil) || todayISODate())
+    : (tanggal_ambil || '');
+
   runq(req, `
     UPDATE receipts SET
       customer_name = ?, customer_phone = ?, customer_address = ?,
@@ -625,6 +654,7 @@ router.put('/receipts/:id', (req, res) => {
       complaint = ?, notes = ?, delivery_note = ?, estimated_cost = ?, down_payment = ?,
       discount_type = ?, discount_value = ?, discount_note = ?,
       status = ?, payment_status = ?, due_date = ?, settle_date = ?, settle_method = ?,
+      garansi_bulan = ?, tanggal_ambil = ?,
       updated_at = datetime('now','localtime')
     WHERE id = ?
   `, [
@@ -635,6 +665,7 @@ router.put('/receipts/:id', (req, res) => {
     discount_type || '', discount_value || 0, discount_note || '',
     status || 'diterima', payStatus, dd,
     settle_date || '', settle_method || '',
+    garansi_bulan || 0, finalTakeDate,
     parseInt(req.params.id)
   ]);
 

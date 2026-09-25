@@ -220,6 +220,20 @@ tr:hover td { background: #f8fafc; }
 .pay-none { background: #f1f5f9; color: #475569; }
 .pay-due { background: #fee2e2 !important; color: #b91c1c !important; }
 
+.g-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: .75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.g-active { background: #dcfce7; color: #14532d; }
+.g-expired { background: #fee2e2; color: #b91c1c; }
+.g-none { background: #f1f5f9; color: #475569; }
+.g-pending { background: #e0f2fe; color: #075985; }
+
 .due-banner {
   background: #fef2f2;
   border: 1px solid #fecaca;

@@ -78,6 +78,8 @@ async function init(tenant) {
       due_date TEXT,
       settle_date TEXT DEFAULT '',
       settle_method TEXT DEFAULT '',
+      garansi_bulan INTEGER DEFAULT 0,
+      tanggal_ambil TEXT DEFAULT '',
       created_at TEXT DEFAULT (datetime('now','localtime')),
       updated_at TEXT DEFAULT (datetime('now','localtime')),
       client_id TEXT,
@@ -163,6 +165,9 @@ async function init(tenant) {
   if (!cols.includes('discount_type')) db.run("ALTER TABLE receipts ADD COLUMN discount_type TEXT DEFAULT ''");
   if (!cols.includes('discount_value')) db.run('ALTER TABLE receipts ADD COLUMN discount_value REAL DEFAULT 0');
   if (!cols.includes('discount_note')) db.run("ALTER TABLE receipts ADD COLUMN discount_note TEXT DEFAULT ''");
+  // Migrasi garansi: durasi bulan + tanggal Diambil (otomatis saat status Diambil)
+  if (!cols.includes('garansi_bulan')) db.run('ALTER TABLE receipts ADD COLUMN garansi_bulan INTEGER DEFAULT 0');
+  if (!cols.includes('tanggal_ambil')) db.run("ALTER TABLE receipts ADD COLUMN tanggal_ambil TEXT DEFAULT ''");
 
   // Migrasi HPP (harga beli) produk
   const pcols = db.exec('PRAGMA table_info(products)')[0]?.values.map(r => r[1]) || [];
