@@ -2078,8 +2078,6 @@ function renderSaleDotMatrix(s) {
 }
 
 function renderSaleA4(s) {
-  const items = parseSaleItems(s);
-  const disc = saleDiscountAmount(s.subtotal, s.discount_type, s.discount_value);
   return `
     <div class="a4-header">
       <div class="a4-brand">
@@ -2094,7 +2092,14 @@ function renderSaleA4(s) {
         <p><strong>Tanggal:</strong> ${fmtDateStr(s.date || s.created_at)}</p>
       </div>
     </div>
+    ${renderSaleA4Body(s)}
+  `;
+}
 
+function renderSaleA4Body(s) {
+  const items = parseSaleItems(s);
+  const disc = saleDiscountAmount(s.subtotal, s.discount_type, s.discount_value);
+  return `
     <table class="a4-table">
       <tr><th colspan="2">DATA PELANGGAN</th></tr>
       <tr>
@@ -2155,7 +2160,7 @@ function renderSaleHalfA4(s) {
         <p><strong>Tanggal:</strong> ${fmtDateStr(s.date || s.created_at)}</p>
       </div>
     </div>
-    ${renderSaleA4(s)}`;
+    ${renderSaleA4Body(s)}`;
 }
 
 // ============ INIT ============
