@@ -875,31 +875,32 @@ router.get('/products/:id', (req, res) => {
 });
 
 router.post('/products', (req, res) => {
-  const { name, category, price, hpp, stock } = req.body || {};
+  const { name, category, price, hpp, stock, supplier } = req.body || {};
   if (!name || !String(name).trim()) return res.status(400).json({ error: 'Nama produk wajib diisi' });
   runq(req, `
-    INSERT INTO products (client_id, name, category, price, hpp, stock)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO products (client_id, name, category, price, hpp, stock, supplier)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `, [
     crypto.randomUUID(), String(name).trim(), String(category || '').trim(),
-    Number(price) || 0, Number(hpp) || 0, Number(stock) || 0
+    Number(price) || 0, Number(hpp) || 0, Number(stock) || 0, String(supplier || '').trim()
   ]);
   const row = one(req, 'SELECT * FROM products WHERE id = last_insert_rowid()');
   res.status(201).json(row);
 });
 
 router.put('/products/:id', (req, res) => {
-  const { name, category, price, hpp, stock } = req.body || {};
+  const { name, category, price, hpp, stock, supplier } = req.body || {};
   if (!name || !String(name).trim()) return res.status(400).json({ error: 'Nama produk wajib diisi' });
   const before = one(req, 'SELECT id FROM products WHERE id = ?', [parseInt(req.params.id)]);
   if (!before) return res.status(404).json({ error: 'Tidak ditemukan' });
   runq(req, `
-    UPDATE products SET name = ?, category = ?, price = ?, hpp = ?, stock = ?,
+    UPDATE products SET name = ?, category = ?, price = ?, hpp = ?, stock = ?, supplier = ?,
       updated_at = datetime('now','localtime'), deleted = 0
     WHERE id = ?
   `, [
     String(name).trim(), String(category || '').trim(),
-    Number(price) || 0, Number(hpp) || 0, Number(stock) || 0, parseInt(req.params.id)
+    Number(price) || 0, Number(hpp) || 0, Number(stock) || 0,
+    String(supplier || '').trim(), parseInt(req.params.id)
   ]);
   const row = one(req, 'SELECT * FROM products WHERE id = ?', [parseInt(req.params.id)]);
   res.json(row);
@@ -1203,13 +1204,13 @@ router.post('/sync/products/push', (req, res) => {
     if (!d.name) continue;
     const exist = one(req, 'SELECT id FROM products WHERE client_id = ?', [c.client_id]);
     if (exist) {
-      runq(req, `UPDATE products SET name = ?, category = ?, price = ?, hpp = ?, stock = ?, deleted = 0,
+      runq(req, `UPDATE products SET name = ?, category = ?, price = ?, hpp = ?, stock = ?, supplier = ?, deleted = 0,
           updated_at = datetime('now','localtime') WHERE client_id = ?`,
-        [d.name, d.category || '', d.price || 0, d.hpp || 0, d.stock || 0, c.client_id]);
+        [d.name, d.category || '', d.price || 0, d.hpp || 0, d.stock || 0, d.supplier || '', c.client_id]);
     } else {
-      runq(req, `INSERT INTO products (client_id, name, category, price, hpp, stock)
-          VALUES (?, ?, ?, ?, ?, ?)`,
-        [c.client_id, d.name, d.category || '', d.price || 0, d.hpp || 0, d.stock || 0]);
+      runq(req, `INSERT INTO products (client_id, name, category, price, hpp, stock, supplier)
+          VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [c.client_id, d.name, d.category || '', d.price || 0, d.hpp || 0, d.stock || 0, d.supplier || '']);
     }
   }
   const since = (req.body && req.body.since) || '';

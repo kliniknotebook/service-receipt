@@ -1803,13 +1803,14 @@ async function loadKasirProducts() {
 function renderProdukTable(list) {
   const tbody = document.querySelector('#produk-table tbody');
   if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="empty-state"><p>Belum ada produk</p></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="empty-state"><p>Belum ada produk</p></td></tr>`;
     return;
   }
   tbody.innerHTML = list.map(p => `
     <tr>
       <td><strong>${escapeHtml(p.name)}</strong></td>
       <td>${escapeHtml(p.category || '-')}</td>
+      <td>${escapeHtml(p.supplier || '-')}</td>
       <td>${formatRupiah(p.price)}</td>
       <td>${formatRupiah(p.hpp || 0)}</td>
       <td>${p.stock}</td>
@@ -1828,6 +1829,7 @@ function resetProdukForm() {
   document.getElementById('produk-id').value = '';
   document.getElementById('produk-name').value = '';
   document.getElementById('produk-category').value = '';
+  document.getElementById('produk-supplier').value = '';
   document.getElementById('produk-price').value = '0';
   document.getElementById('produk-hpp').value = '0';
   document.getElementById('produk-stock').value = '0';
@@ -1842,6 +1844,7 @@ async function saveProduk() {
   const body = {
     name: name,
     category: document.getElementById('produk-category').value.trim(),
+    supplier: document.getElementById('produk-supplier').value.trim(),
     price: parseRupiah(document.getElementById('produk-price').value),
     hpp: parseRupiah(document.getElementById('produk-hpp').value),
     stock: parseRupiah(document.getElementById('produk-stock').value)
@@ -1868,6 +1871,7 @@ function editProduk(id) {
   document.getElementById('produk-id').value = p.id;
   document.getElementById('produk-name').value = p.name;
   document.getElementById('produk-category').value = p.category || '';
+  document.getElementById('produk-supplier').value = p.supplier || '';
   document.getElementById('produk-price').value = numId(p.price);
   document.getElementById('produk-hpp').value = numId(p.hpp || 0);
   document.getElementById('produk-stock').value = numId(p.stock);

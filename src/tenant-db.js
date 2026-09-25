@@ -99,6 +99,7 @@ async function init(tenant) {
       price REAL DEFAULT 0,
       hpp REAL DEFAULT 0,
       stock REAL DEFAULT 0,
+      supplier TEXT DEFAULT '',
       created_at TEXT DEFAULT (datetime('now','localtime')),
       updated_at TEXT DEFAULT (datetime('now','localtime')),
       synced_at TEXT,
@@ -152,6 +153,8 @@ async function init(tenant) {
   // Migrasi HPP (harga beli) produk
   const pcols = db.exec('PRAGMA table_info(products)')[0]?.values.map(r => r[1]) || [];
   if (!pcols.includes('hpp')) db.run('ALTER TABLE products ADD COLUMN hpp REAL DEFAULT 0');
+  // Migrasi Pemasok (toko tempat beli stok)
+  if (!pcols.includes('supplier')) db.run("ALTER TABLE products ADD COLUMN supplier TEXT DEFAULT ''");
 
   const defaults = {
     shop_name: tenant.shop_name || 'Service Center',
