@@ -377,6 +377,7 @@ router.use('/settings', requireTenant);
 router.use('/report', requireTenant);
 router.use('/sync', requireTenant);
 router.use('/products', requireTenant);
+router.use('/customers', requireTenant);
 router.use('/sales', requireTenant);
 router.use('/sales-report', requireTenant);
 
