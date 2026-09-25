@@ -784,6 +784,7 @@ function renderPrint() {
   if (!printData) return;
   const r = printData;
   const isSale = !!r.sale_number;
+  const remaining = remainAmount(r);
   const size = document.getElementById('print-size').value;
 
   const content = document.getElementById('print-content');
