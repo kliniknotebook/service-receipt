@@ -814,6 +814,7 @@ async function printReceipt(id) {
     document.getElementById('print-size').value = 'dotmatrix';
     renderPrint();
     document.getElementById('print-preview').classList.add('open');
+    fitPrintSheetAfterOpen();
   } catch (err) {
     showToast('Gagal memuat data cetak', 'error');
   }
@@ -840,16 +841,48 @@ function renderPrint() {
     } else {
       content.innerHTML = renderSaleDotMatrix(r);
     }
-    return;
-  }
-
-  if (size === 'a4') {
-    content.innerHTML = renderA4(r, remaining);
-  } else if (size === 'halfa4') {
-    content.innerHTML = renderHalfA4(r, remaining);
   } else {
-    content.innerHTML = renderDotMatrix(r, remaining);
+    if (size === 'a4') {
+      content.innerHTML = renderA4(r, remaining);
+    } else if (size === 'halfa4') {
+      content.innerHTML = renderHalfA4(r, remaining);
+    } else {
+      content.innerHTML = renderDotMatrix(r, remaining);
+    }
   }
+  window.__printContent = content;
+  window.__printSize = size;
+}
+
+// Panggil SETELAH preview sudah tampil (display bukan none) agar tinggi konten
+// bisa diukur. Simpan instruksi dari renderPrint() lalu ukur fit saat modal
+// benar-benar terbuka.
+function fitPrintSheetAfterOpen() {
+  const content = window.__printContent;
+  const size = window.__printSize;
+  if (!content) return;
+  requestAnimationFrame(() => {
+    fitPrintSheet(content, size);
+  });
+}
+
+// Ukur tinggi konten lalu zoom agar selalu muat SATU halaman di kertas yang
+// dipilih (mencegah konten panjang pecah jadi 2-3 halaman saat cetak Half A4).
+function fitPrintSheet(content, size) {
+  content.style.zoom = '1';
+  const targets = {
+    halfa4: { w: 498, h: 733 },   // area isi Half A4 132x194mm @96dpi
+    a4: { w: 718, h: 1047 },      // area isi A4 190x277mm @96dpi
+    dotmatrix: null,              // struk kontinu: biarkan flow normal
+  };
+  const t = targets[size];
+  if (!t) return;
+  content.style.width = t.w + 'px';
+  const cw = content.scrollWidth || content.offsetWidth || t.w;
+  const ch = content.scrollHeight || content.offsetHeight || t.h;
+  if (cw <= 0 || ch <= 0) return;
+  const zoom = Math.min(1, t.w / cw, t.h / ch);
+  if (zoom < 1) content.style.zoom = String(zoom);
 }
 
 // Kirim tanda terima (PDF) via WhatsApp
@@ -2143,6 +2176,7 @@ async function printSale(id) {
     document.getElementById('print-size').value = 'dotmatrix';
     renderPrint();
     document.getElementById('print-preview').classList.add('open');
+    fitPrintSheetAfterOpen();
   } catch (err) {
     showToast('Gagal memuat data cetak', 'error');
   }
