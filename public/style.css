@@ -547,6 +547,13 @@ tr:hover td { background: #f8fafc; }
   line-height: 1.5;
 }
 
+.print-hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #555;
+  text-align: center;
+}
+
 .print-a4 {
   max-width: 190mm;
   min-height: 265mm;
@@ -853,7 +860,7 @@ table.a4-sign-table {
 }
 
 @page halfa4 {
-  size: 139.7mm 215.9mm; /* Half Letter = setengah A4, portrait */
+  size: 148mm 210mm; /* Half A4 portrait */
   margin: 8mm;
 }
 
@@ -864,6 +871,66 @@ table.a4-sign-table {
 
 @media print {
   #print-content { margin: 0; }
+}
+
+/* ===== Perkuat garis saat cetak fisik =====
+   Printer inkjet (mis. Epson L120) sering membuang border CSS tipis 1px
+   atau dashed saat render. Pertebal semua garis menjadi hitam solid agar
+   hasil cetak konsisten dengan preview. */
+@media print {
+  #print-content,
+  #print-content * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  #print-content table.a4-table th,
+  #print-content table.a4-table td {
+    border: 2px solid #000 !important;
+  }
+
+  #print-content .a4-cost {
+    border: 2px solid #000 !important;
+  }
+
+  #print-content .a4-cost-row {
+    border-bottom: 2px solid #000 !important;
+  }
+
+  #print-content .a4-cost-row:last-child {
+    border-bottom: none !important;
+  }
+
+  #print-content .a4-header,
+  #print-content .half-header {
+    border-bottom: 3px solid #000 !important;
+  }
+
+  #print-content .a4-title h2,
+  #print-content .half-title h2 {
+    border: 3px solid #000 !important;
+  }
+
+  #print-content .a4-footer {
+    border-top: 2px solid #000 !important;
+  }
+
+  #print-content .a4-sign-name {
+    border-top: 2px solid #000 !important;
+  }
+
+  #print-content .receipt-header {
+    border-bottom: 3px solid #000 !important;
+  }
+
+  #print-content .receipt-footer {
+    border-top: 3px solid #000 !important;
+  }
+
+  #print-content .receipt-divider,
+  #print-content .dotmatrix-statement {
+    border-top: 2px solid #000 !important;
+  }
 }
 
 /* ===== Login overlay ===== */
