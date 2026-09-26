@@ -840,7 +840,7 @@ table.a4-sign-table {
     margin: 0;
   }
   .print-dotmatrix { max-width: 400px; width: 400px; }
-  .print-halfa4 { max-width: 190mm; width: 100%; }
+  .print-halfa4 { max-width: 132mm; width: 100%; }
   .print-a4 { max-width: 190mm; width: 100%; }
 }
 
@@ -871,6 +871,49 @@ table.a4-sign-table {
 
 @media print {
   #print-content { margin: 0; }
+}
+
+/* ===== Half A4: muat SATU halaman =====
+   Konten tanda terima/struk Half A4 dibuat ringkas saat cetak agar tidak
+   pecah jadi 2-3 halaman. Hanya berpengaruh saat cetak, preview layar tetap. */
+@media print {
+  .print-halfa4 {
+    font-size: 11px;
+    line-height: 1.35;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .print-halfa4 * {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .print-halfa4 .half-header {
+    padding-bottom: 6px;
+    margin-bottom: 8px;
+  }
+  .print-halfa4 .half-header h1 { font-size: 1.15rem; margin-bottom: 1px; }
+  .print-halfa4 .half-header p { margin: 1px 0; }
+  .print-halfa4 .half-title h2 {
+    font-size: 1rem;
+    padding: 3px 10px;
+    margin-bottom: 2px;
+  }
+  .print-halfa4 table.a4-table { margin-bottom: 8px; }
+  .print-halfa4 table.a4-table th,
+  .print-halfa4 table.a4-table td {
+    padding: 3px 8px;
+  }
+  .print-halfa4 .a4-cell-tall { min-height: 40px; }
+  .print-halfa4 .a4-cell-mid { min-height: 26px; }
+  .print-halfa4 .a4-cell-half { min-height: 22px; }
+  .print-halfa4 .a4-field { margin: 2px 0; }
+  .print-halfa4 .a4-cost { margin-bottom: 8px; }
+  .print-halfa4 .a4-cost-row { padding: 4px 12px; }
+  .print-halfa4 .a4-status { margin-bottom: 10px; }
+  .print-halfa4 table.a4-sign-table { margin-top: 14px; }
+  .print-halfa4 .a4-sign-space { height: 46px; }
+  .print-halfa4 .a4-footer { margin-top: 10px; padding-top: 6px; }
+  .print-halfa4 .print-logo { max-height: 42px; }
 }
 
 /* ===== Perkuat garis saat cetak fisik =====
