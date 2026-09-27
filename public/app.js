@@ -55,7 +55,38 @@ function hideLogin() {
 
 function showApp() {
   document.getElementById('btn-logout').style.display = '';
+  document.getElementById('btn-review').style.display = '';
 }
+
+const REVIEW_URL = 'https://www.google.com/search?q=klinik+notebook+surabaya';
+
+document.getElementById('btn-review').addEventListener('click', (e) => {
+  e.preventDefault();
+  window.open(REVIEW_URL, '_blank');
+});
+
+let reviewQrShown = false;
+document.getElementById('btn-review-copy').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(REVIEW_URL);
+    alert('Link ulasan disalin ke clipboard. Bagikan ke pelanggan ya!');
+  } catch (_) {
+    prompt('Salin link berikut:', REVIEW_URL);
+  }
+});
+
+document.getElementById('btn-review-qr').addEventListener('click', () => {
+  const wrap = document.getElementById('review-qr-wrap');
+  if (reviewQrShown && wrap.style.display !== 'none') {
+    wrap.style.display = 'none';
+    return;
+  }
+  document.getElementById('review-qr-img').src =
+    'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' +
+    encodeURIComponent(REVIEW_URL);
+  wrap.style.display = 'block';
+  reviewQrShown = true;
+});
 
 // Navigation
 document.querySelectorAll('.nav-link').forEach(link => {
@@ -1365,6 +1396,7 @@ document.getElementById('btn-logout').addEventListener('click', (e) => {
   setToken(null);
   localStorage.removeItem('shop_user');
   document.getElementById('btn-logout').style.display = 'none';
+  document.getElementById('btn-review').style.display = 'none';
   document.getElementById('sub-banner').style.display = 'none';
   document.getElementById('sub-overlay').style.display = 'none';
   showLogin();

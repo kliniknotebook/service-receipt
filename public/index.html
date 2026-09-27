@@ -16,6 +16,7 @@
       <a href="#" class="nav-link" data-page="kasir">Kasir</a>
       <a href="#" class="nav-link" data-page="report">Laporan</a>
       <a href="#" class="nav-link" data-page="settings">Pengaturan</a>
+      <a href="#" class="nav-link logged-in" id="btn-review" style="display:none" title="Beri ulasan di Google Maps">⭐ Ulasan</a>
       <a href="#" class="nav-link logged-in" id="btn-logout" style="display:none">Keluar</a>
     </div>
   </nav>
@@ -500,6 +501,19 @@
         <button type="submit" class="btn btn-primary">Ganti Password</button>
         <small class="form-hint" style="display:block;margin-top:10px">ID login toko Anda: <b id="set-username-label"></b></small>
       </form>
+
+      <h2 style="margin-top:32px">Ulasan Google Maps</h2>
+      <div class="form-card">
+        <p class="form-hint">Bagikan link ulasan Google toko ke pelanggan agar mereka bisa memberi bintang ⭐ di Google Maps.</p>
+        <div class="form-actions" style="justify-content:flex-start">
+          <button type="button" class="btn btn-primary" id="btn-review-copy">Salin Link Ulasan</button>
+          <button type="button" class="btn btn-secondary" id="btn-review-qr">Tampilkan QR Code</button>
+        </div>
+        <div id="review-qr-wrap" style="display:none;margin-top:12px;text-align:center">
+          <img id="review-qr-img" alt="QR Ulasan Google" style="width:220px;height:220px;border:1px solid var(--border);border-radius:8px">
+          <p class="form-hint">Scan QR untuk langsung menulis ulasan.</p>
+        </div>
+      </div>
     </section>
   </main>
 
@@ -717,6 +731,6 @@
     <div id="print-content"></div>
   </div>
 
-  <script src="app.js?v=32"></script>
+  <script src="app.js?v=33"></script>
 </body>
 </html>
