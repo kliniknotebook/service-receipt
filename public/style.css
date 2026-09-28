@@ -1047,3 +1047,11 @@ table.a4-sign-table {
 .produkt-form { margin-bottom: 16px; max-width: 720px; }
 .produkt-form h4 { margin-bottom: 10px; }
 #cart-paid-group .form-row { gap: 8px; }
+
+.garansi-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+}
+

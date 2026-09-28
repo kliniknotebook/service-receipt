@@ -438,7 +438,7 @@ router.post('/sync/push', (req, res) => {
             complaint = ?, notes = ?, delivery_note = ?, estimated_cost = ?, down_payment = ?,
             discount_type = ?, discount_value = ?, discount_note = ?,
             status = ?, payment_status = ?, due_date = ?, settle_date = ?, settle_method = ?,
-            garansi_bulan = ?, tanggal_ambil = ?,
+            garansi_bulan = ?, garansi_unit = ?, tanggal_ambil = ?,
             deleted = 0, updated_at = datetime('now','localtime')
           WHERE client_id = ?`, [
           d.customer_name || '', d.customer_phone || '', d.customer_address || '',
@@ -448,7 +448,7 @@ router.post('/sync/push', (req, res) => {
           d.discount_type || '', d.discount_value || 0, d.discount_note || '',
           d.status || 'diterima',
           ps, dd, d.settle_date || '', d.settle_method || '',
-          d.garansi_bulan || 0, takeDate,
+          d.garansi_bulan || 0, d.garansi_unit || 'bulan', takeDate,
           c.client_id
         ]);
       } else {
@@ -470,7 +470,7 @@ router.post('/sync/push', (req, res) => {
               discount_type = ?, discount_value = ?, discount_note = ?,
               status = ?,
               payment_status = ?, due_date = ?, settle_date = ?, settle_method = ?,
-              garansi_bulan = ?, tanggal_ambil = ?,
+              garansi_bulan = ?, garansi_unit = ?, tanggal_ambil = ?,
               updated_at = datetime('now','localtime')
             WHERE id = ?`, [
             c.client_id,
@@ -481,7 +481,7 @@ router.post('/sync/push', (req, res) => {
             d.discount_type || '', d.discount_value || 0, d.discount_note || '',
             d.status || 'diterima',
             ps, dd, d.settle_date || '', d.settle_method || '',
-            d.garansi_bulan || 0, takeDate,
+            d.garansi_bulan || 0, d.garansi_unit || 'bulan', takeDate,
             existing.id
           ]);
         } else {
@@ -493,9 +493,9 @@ router.post('/sync/push', (req, res) => {
              device_type, device_brand, device_model, device_serial, complaint, notes,
              delivery_note, estimated_cost, down_payment,
              discount_type, discount_value, discount_note,
-             status, payment_status, due_date,
-             settle_date, settle_method, garansi_bulan, tanggal_ambil)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+status, payment_status, due_date,
+              settle_date, settle_method, garansi_bulan, garansi_unit, tanggal_ambil)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
             rnum, c.client_id,
             d.customer_name || '', d.customer_phone || '', d.customer_address || '',
             d.device_type || '', d.device_brand || '', d.device_model || '', d.device_serial || '',
@@ -504,7 +504,7 @@ router.post('/sync/push', (req, res) => {
             d.discount_type || '', d.discount_value || 0, d.discount_note || '',
             d.status || 'diterima',
             ps, dd, d.settle_date || '', d.settle_method || '',
-            d.garansi_bulan || 0, takeDate
+            d.garansi_bulan || 0, d.garansi_unit || 'bulan', takeDate
           ]);
         }
       }
@@ -588,7 +588,7 @@ router.post('/receipts', (req, res) => {
     complaint, notes, delivery_note, estimated_cost, down_payment, status,
     discount_type, discount_value, discount_note,
     payment_status, due_date, settle_date, settle_method,
-    garansi_bulan, tanggal_ambil
+    garansi_bulan, garansi_unit, tanggal_ambil
   } = req.body;
 
   const payStatus = paymentStatusTo(payment_status);
@@ -606,8 +606,8 @@ router.post('/receipts', (req, res) => {
       device_type, device_brand, device_model, device_serial, complaint, notes, delivery_note,
       discount_type, discount_value, discount_note,
       estimated_cost, down_payment, status, payment_status, due_date, settle_date, settle_method,
-      garansi_bulan, tanggal_ambil)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      garansi_bulan, garansi_unit, tanggal_ambil)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     receipt_number, client_id, customer_name, customer_phone || '', customer_address || '',
     device_type || '', device_brand || '', device_model || '', device_serial || '',
@@ -615,7 +615,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     discount_type || '', discount_value || 0, discount_note || '',
     estimated_cost || 0, down_payment || 0, status || 'diterima', payStatus, dd,
     settle_date || '', settle_method || '',
-    garansi_bulan || 0, finalTakeDate
+    garansi_bulan || 0, garansi_unit || 'bulan', finalTakeDate
   ]);
 
   const row = one(req, 'SELECT * FROM receipts WHERE receipt_number = ?', [receipt_number]);
@@ -630,7 +630,7 @@ router.put('/receipts/:id', (req, res) => {
     complaint, notes, delivery_note, estimated_cost, down_payment, status,
     discount_type, discount_value, discount_note,
     payment_status, due_date, settle_date, settle_method,
-    garansi_bulan, tanggal_ambil
+    garansi_bulan, garansi_unit, tanggal_ambil
   } = req.body;
 
   const payStatus = paymentStatusTo(payment_status);
@@ -654,7 +654,7 @@ router.put('/receipts/:id', (req, res) => {
       complaint = ?, notes = ?, delivery_note = ?, estimated_cost = ?, down_payment = ?,
       discount_type = ?, discount_value = ?, discount_note = ?,
       status = ?, payment_status = ?, due_date = ?, settle_date = ?, settle_method = ?,
-      garansi_bulan = ?, tanggal_ambil = ?,
+      garansi_bulan = ?, garansi_unit = ?, tanggal_ambil = ?,
       updated_at = datetime('now','localtime')
     WHERE id = ?
   `, [
@@ -665,7 +665,7 @@ router.put('/receipts/:id', (req, res) => {
     discount_type || '', discount_value || 0, discount_note || '',
     status || 'diterima', payStatus, dd,
     settle_date || '', settle_method || '',
-    garansi_bulan || 0, finalTakeDate,
+    garansi_bulan || 0, garansi_unit || 'bulan', finalTakeDate,
     parseInt(req.params.id)
   ]);
 

@@ -123,9 +123,10 @@ function statusBadge(status) {
 }
 
 function garansiCell(r) {
-  const months = Number(r.garansi_bulan) || 0;
+  const n = Number(r.garansi_bulan) || 0;
+  const unit = r.garansi_unit || 'bulan';
   const take = r.tanggal_ambil || '';
-  if (months <= 0) {
+  if (n <= 0) {
     return `<span class="g-badge g-none">Tanpa Garansi</span>`;
   }
   if (!take) {
@@ -133,7 +134,13 @@ function garansiCell(r) {
   }
   const d = new Date(take + 'T00:00:00');
   const until = new Date(d.getTime());
-  until.setMonth(until.getMonth() + months);
+  if (unit === 'hari') {
+    until.setDate(until.getDate() + n);
+  } else if (unit === 'minggu') {
+    until.setDate(until.getDate() + n * 7);
+  } else {
+    until.setMonth(until.getMonth() + n);
+  }
   const untilISO = new Date(until.getTime() - until.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
   if (untilISO < todayISO()) {
     return `<span class="g-badge g-expired">Garansi Habis · ${fmtDateStr(untilISO)}</span>`;
@@ -487,6 +494,7 @@ function openModal(data = null) {
     document.getElementById('f-settle_method').value = data.settle_method || '';
     document.getElementById('f-settle_date').value = data.settle_date || '';
     document.getElementById('f-garansi_bulan').value = data.garansi_bulan || 0;
+    document.getElementById('f-garansi_unit').value = data.garansi_unit || 'bulan';
     document.getElementById('f-tanggal_ambil').value = data.tanggal_ambil || '';
   } else {
     document.getElementById('modal-title').textContent = 'Tanda Terima Baru';
@@ -497,6 +505,7 @@ function openModal(data = null) {
     document.getElementById('f-settle_method').value = '';
     document.getElementById('f-settle_date').value = '';
     document.getElementById('f-garansi_bulan').value = 0;
+    document.getElementById('f-garansi_unit').value = 'bulan';
     document.getElementById('f-tanggal_ambil').value = '';
     document.getElementById('f-create-more').checked = true;
   }
@@ -545,6 +554,7 @@ document.getElementById('receipt-form').addEventListener('submit', async (e) => 
     discount_note: document.getElementById('f-discount_note').value,
     status: document.getElementById('f-status').value,
     garansi_bulan: Number(document.getElementById('f-garansi_bulan').value) || 0,
+    garansi_unit: document.getElementById('f-garansi_unit').value || 'bulan',
     tanggal_ambil: document.getElementById('f-tanggal_ambil').value || ''
   };
 
