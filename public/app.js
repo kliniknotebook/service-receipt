@@ -125,11 +125,11 @@ function statusBadge(status) {
 function garansiCell(r) {
   const months = Number(r.garansi_bulan) || 0;
   const take = r.tanggal_ambil || '';
-  if (!take) {
-    return `<span class="g-badge g-pending">Belum Diambil</span>`;
-  }
   if (months <= 0) {
     return `<span class="g-badge g-none">Tanpa Garansi</span>`;
+  }
+  if (!take) {
+    return `<span class="g-badge g-pending">Belum Diambil</span>`;
   }
   const d = new Date(take + 'T00:00:00');
   const until = new Date(d.getTime());
