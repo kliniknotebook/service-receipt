@@ -404,14 +404,12 @@ function toggleDeliveryGroup() {
 }
 document.getElementById('f-status').addEventListener('change', toggleDeliveryGroup);
 
-// Tanggal Diambil: otomatis terisi saat status Diambil (dipakai untuk hitung garansi)
+// Tanggal Diambil: otomatis terisi saat status Diambil (bisa diubah manual)
 function syncTanggalAmbil() {
   const st = document.getElementById('f-status').value;
   const ta = document.getElementById('f-tanggal_ambil');
   if (st === 'diambil' && !ta.value) {
     ta.value = todayISO();
-  } else if (st !== 'diambil') {
-    ta.value = '';
   }
 }
 document.getElementById('f-status').addEventListener('change', syncTanggalAmbil);
