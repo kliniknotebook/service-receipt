@@ -484,6 +484,7 @@ function openModal(data = null) {
     document.getElementById('f-notes').value = data.notes || '';
     document.getElementById('f-delivery_note').value = data.delivery_note || '';
     document.getElementById('f-estimated_cost').value = numId(data.estimated_cost);
+    document.getElementById('f-actual_cost').value = numId(data.actual_cost);
     document.getElementById('f-down_payment').value = numId(data.down_payment);
     document.getElementById('f-discount_type').value = data.discount_type || '';
     document.getElementById('f-discount_value').value = data.discount_value ? numId(data.discount_value) : '0';
@@ -549,6 +550,7 @@ document.getElementById('receipt-form').addEventListener('submit', async (e) => 
     delivery_note: document.getElementById('f-delivery_note').value,
     estimated_cost: parseRupiah(document.getElementById('f-estimated_cost').value),
     down_payment: parseRupiah(document.getElementById('f-down_payment').value),
+    actual_cost: parseRupiah(document.getElementById('f-actual_cost').value),
     discount_type: document.getElementById('f-discount_type').value,
     discount_value: parseRupiah(document.getElementById('f-discount_value').value),
     discount_note: document.getElementById('f-discount_note').value,
@@ -999,6 +1001,10 @@ function renderDotMatrix(r, remaining) {
       <span>${formatRupiah(r.estimated_cost)}</span>
     </div>
     <div class="receipt-row">
+      <span>Biaya Aktual</span>
+      <span>${formatRupiah(r.actual_cost || 0)}</span>
+    </div>
+    <div class="receipt-row">
       <span>Uang Muka (DP)</span>
       <span>${formatRupiah(r.down_payment)}</span>
     </div>
@@ -1103,6 +1109,7 @@ function renderA4(r, remaining) {
 
     <div class="a4-cost">
       <div class="a4-cost-row"><span>Estimasi Biaya</span><span>${formatRupiah(r.estimated_cost)}</span></div>
+      <div class="a4-cost-row"><span>Biaya Aktual</span><span>${formatRupiah(r.actual_cost || 0)}</span></div>
       <div class="a4-cost-row"><span>Uang Muka (DP)</span><span>${formatRupiah(r.down_payment)}</span></div>
       ${discountAmount(r) ? `<div class="a4-cost-row"><span>Diskon${r.discount_note ? ' (' + r.discount_note + ')' : ''}</span><span>${formatRupiah(discountAmount(r))}</span></div>` : ''}
       <div class="a4-cost-row a4-total"><span>Sisa Bayar</span><span>${formatRupiah(remaining)}</span></div>
@@ -1200,6 +1207,7 @@ function renderHalfA4(r, remaining) {
 
     <div class="a4-cost">
       <div class="a4-cost-row"><span>Estimasi Biaya</span><span>${formatRupiah(r.estimated_cost)}</span></div>
+      <div class="a4-cost-row"><span>Biaya Aktual</span><span>${formatRupiah(r.actual_cost || 0)}</span></div>
       <div class="a4-cost-row"><span>Uang Muka (DP)</span><span>${formatRupiah(r.down_payment)}</span></div>
       ${discountAmount(r) ? `<div class="a4-cost-row"><span>Diskon${r.discount_note ? ' (' + r.discount_note + ')' : ''}</span><span>${formatRupiah(discountAmount(r))}</span></div>` : ''}
       <div class="a4-cost-row a4-total"><span>Sisa Bayar</span><span>${formatRupiah(remaining)}</span></div>
@@ -1967,12 +1975,24 @@ document.getElementById('kasir-search').addEventListener('input', debounce(() =>
 
 // ============ DATA PELANGGAN ============
 let customers = [];
+let custPickList = [];
 const fCustPick = document.getElementById('f-cust-pick');
 const cartCustPick = document.getElementById('cart-cust-pick');
 
 async function loadCustomers() {
   try {
     customers = await (await fetch(`${API}/customers`)).json();
+    custPickList = [...customers];
+    try {
+      const rc = await (await fetch(`${API}/receipts`)).json();
+      const seen = new Set(customers.map(c => c.name));
+      for (const r of (Array.isArray(rc) ? rc : [])) {
+        const nm = (r.customer_name || '').trim();
+        if (!nm || seen.has(nm)) continue;
+        seen.add(nm);
+        custPickList.push({ name: nm, phone: r.customer_phone || '', address: r.customer_address || '' });
+      }
+    } catch (err) { /* riwayat opsional */ }
     fillCustPicks();
     renderPelangganTable();
   } catch (err) {
@@ -1981,7 +2001,7 @@ async function loadCustomers() {
 }
 
 function fillCustPicks() {
-  const opts = customers.map(c => `<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)}${c.phone ? ' — ' + escapeHtml(c.phone) : ''}</option>`).join('');
+  const opts = custPickList.map(c => `<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)}${c.phone ? ' — ' + escapeHtml(c.phone) : ''}</option>`).join('');
   if (fCustPick) fCustPick.innerHTML = '<option value="">-- Pilih / ketik manual --</option>' + opts;
   if (cartCustPick) cartCustPick.innerHTML = '<option value="">-- Pilih / ketik manual --</option>' + opts;
 }
@@ -2068,7 +2088,7 @@ document.getElementById('pelanggan-reset').addEventListener('click', resetPelang
 
 if (fCustPick) {
   fCustPick.addEventListener('change', () => {
-    const p = customers.find(c => c.name === fCustPick.value);
+    const p = custPickList.find(c => c.name === fCustPick.value);
     if (!p) return;
     document.getElementById('f-customer_name').value = p.name;
     document.getElementById('f-customer_phone').value = p.phone || '';
@@ -2078,7 +2098,7 @@ if (fCustPick) {
 
 if (cartCustPick) {
   cartCustPick.addEventListener('change', () => {
-    const p = customers.find(c => c.name === cartCustPick.value);
+    const p = custPickList.find(c => c.name === cartCustPick.value);
     if (!p) return;
     document.getElementById('cart-customer').value = p.name;
     document.getElementById('cart-phone').value = p.phone || '';

@@ -103,6 +103,7 @@ function buildA4(settings, r, logoPath) {
   doc.moveDown(0.5);
   doc.fontSize(11).fillColor('#000');
   doc.text('Estimasi Biaya   : ' + formatRupiah(r.estimated_cost), baseX, doc.y);
+  doc.text('Biaya Aktual     : ' + formatRupiah(r.actual_cost || 0));
   doc.text('Uang Muka (DP)  : ' + formatRupiah(r.down_payment));
   if (discountAmount(r)) {
     doc.text('Diskon' + (r.discount_note ? ' (' + r.discount_note + ')' : '') + ' : ' + formatRupiah(discountAmount(r)));
@@ -213,6 +214,7 @@ function buildHalfA4(settings, r, logoPath) {
   doc.moveDown(0.3);
   doc.fontSize(9).fillColor('#000');
   doc.text('Estimasi: ' + formatRupiah(r.estimated_cost), baseX, doc.y);
+  doc.text('Aktual : ' + formatRupiah(r.actual_cost || 0));
   doc.text('DP      : ' + formatRupiah(r.down_payment));
   if (discountAmount(r)) {
     doc.text('Diskon' + (r.discount_note ? ' (' + r.discount_note + ')' : '') + ': ' + formatRupiah(discountAmount(r)));
