@@ -607,7 +607,7 @@ router.post('/receipts', (req, res) => {
       discount_type, discount_value, discount_note,
       estimated_cost, down_payment, status, payment_status, due_date, settle_date, settle_method,
       garansi_bulan, garansi_unit, tanggal_ambil)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     receipt_number, client_id, customer_name, customer_phone || '', customer_address || '',
     device_type || '', device_brand || '', device_model || '', device_serial || '',
