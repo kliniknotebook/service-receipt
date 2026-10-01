@@ -397,10 +397,26 @@ document.querySelectorAll('#receipt-tabs .tab-btn').forEach(btn => {
   });
 });
 
+// Status Pembayaran 'transfer' (Transfer Bank) = shortcut: dicatat di DB
+// sebagai payment_status 'lunas' + settle_method 'transfer' (dengan begitu
+// format DB & sinkron ke EXE tetap sama, tidak ada nilai baru).
+function isLunasPay(v) {
+  return v === 'lunas' || v === 'transfer';
+}
+
 function toggleSettleFields() {
   const row = document.getElementById('settle-row');
-  const on = document.getElementById('f-payment_status').value === 'lunas';
-  row.style.display = on ? '' : 'none';
+  const v = document.getElementById('f-payment_status').value;
+  row.style.display = isLunasPay(v) ? '' : 'none';
+  const sel = document.getElementById('f-settle_method');
+  if (v === 'transfer') {
+    sel.value = 'transfer';
+    sel.disabled = true;
+    const sd = document.getElementById('f-settle_date');
+    if (!sd.value) sd.value = todayISO();
+  } else {
+    sel.disabled = false;
+  }
 }
 document.getElementById('f-payment_status').addEventListener('change', toggleSettleFields);
 
@@ -490,9 +506,12 @@ function openModal(data = null) {
     document.getElementById('f-discount_value').value = data.discount_value ? numId(data.discount_value) : '0';
     document.getElementById('f-discount_note').value = data.discount_note || '';
     document.getElementById('f-status').value = data.status || 'diterima';
-    document.getElementById('f-payment_status').value = data.payment_status || '';
+    const _sm = data.settle_method || '';
+    // Tampilkan "Transfer Bank" langsung di dropdown Status Pembayaran
+    document.getElementById('f-payment_status').value =
+      (data.payment_status === 'lunas' && _sm === 'transfer') ? 'transfer' : (data.payment_status || '');
     document.getElementById('f-due_date').value = data.due_date || '';
-    document.getElementById('f-settle_method').value = data.settle_method || '';
+    document.getElementById('f-settle_method').value = _sm;
     document.getElementById('f-settle_date').value = data.settle_date || '';
     document.getElementById('f-garansi_bulan').value = data.garansi_bulan || 0;
     document.getElementById('f-garansi_unit').value = data.garansi_unit || 'bulan';
@@ -560,15 +579,18 @@ document.getElementById('receipt-form').addEventListener('submit', async (e) => 
     tanggal_ambil: document.getElementById('f-tanggal_ambil').value || ''
   };
 
-  const payStatus = document.getElementById('f-payment_status').value;
+  const paySel = document.getElementById('f-payment_status').value;
   const dueDate = document.getElementById('f-due_date').value;
-  const settleMethod = document.getElementById('f-settle_method').value;
+  const isLunas = isLunasPay(paySel);
+  const settleMethod = paySel === 'transfer'
+    ? 'transfer'
+    : document.getElementById('f-settle_method').value;
   const settleDate = document.getElementById('f-settle_date').value;
-  if (payStatus === 'hutang' && !dueDate) {
+  if (paySel === 'hutang' && !dueDate) {
     showToast('Tanggal jatuh tempo wajib diisi untuk status Hutang', 'error');
     return;
   }
-  if (payStatus === 'lunas') {
+  if (isLunas) {
     if (!settleMethod) {
       showToast('Pilih metode pembayaran (Cash / Transfer Bank / QRIS) untuk status Lunas', 'error');
       return;
@@ -578,10 +600,11 @@ document.getElementById('receipt-form').addEventListener('submit', async (e) => 
       return;
     }
   }
+  const payStatus = paySel === 'transfer' ? 'lunas' : paySel;
   body.payment_status = payStatus;
   body.due_date = payStatus === 'hutang' ? dueDate : '';
-  body.settle_method = payStatus === 'lunas' ? settleMethod : '';
-  body.settle_date = payStatus === 'lunas' ? settleDate : '';
+  body.settle_method = isLunas ? settleMethod : '';
+  body.settle_date = isLunas ? settleDate : '';
 
   const notifyNeeded = !id || (editingPrevStatus !== null && body.status !== editingPrevStatus);
 
