@@ -437,6 +437,15 @@ function syncTanggalAmbil() {
 }
 document.getElementById('f-status').addEventListener('change', syncTanggalAmbil);
 
+// Peringatan diskon persen: dasar hitungnya Estimasi Biaya (bukan Biaya
+// Aktual). Kalau Estimasi kosong/0, hasilnya Rp 0 tanpa tanda apa pun.
+function diskonPersenTanpaEstimasi(r) {
+  if (!r) return false;
+  if ((r.discount_type || '') !== 'percent') return false;
+  if (Number(r.discount_value) <= 0) return false;
+  return Number(r.estimated_cost || 0) <= 0;
+}
+
 // Preview sisa bayar setelah diskon di form
 function updateSisaHint() {
   const el = document.getElementById('f-sisa-hint');
@@ -450,6 +459,14 @@ function updateSisaHint() {
     discount_value: parseRupiah(document.getElementById('f-discount_value').value)
   };
   const disc = discountAmount(r);
+  if (diskonPersenTanpaEstimasi(r)) {
+    el.textContent = 'PERINGATAN: diskon persen dihitung dari Estimasi Biaya. '
+      + 'Estimasi masih kosong, jadi diskon = Rp 0. Isi Estimasi Biaya dulu '
+      + 'atau pilih jenis diskon "Rp (rupiah)".';
+    el.classList.add('sisa-hint-warn');
+    return;
+  }
+  el.classList.remove('sisa-hint-warn');
   el.textContent = 'Sisa Bayar: ' + formatRupiah(est - disc - dp) + (disc ? ' (Diskon ' + formatRupiah(disc) + ')' : '');
 }
 ['f-estimated_cost', 'f-down_payment', 'f-discount_value'].forEach(idf => {
@@ -581,6 +598,10 @@ document.getElementById('receipt-form').addEventListener('submit', async (e) => 
 
   const paySel = document.getElementById('f-payment_status').value;
   const dueDate = document.getElementById('f-due_date').value;
+  if (diskonPersenTanpaEstimasi(body)) {
+    showToast('Diskon persen dihitung dari Estimasi Biaya yang masih kosong '
+      + '-> diskon jadi Rp 0. Isi Estimasi Biaya dulu.', 'error');
+  }
   const isLunas = isLunasPay(paySel);
   const settleMethod = paySel === 'transfer'
     ? 'transfer'
