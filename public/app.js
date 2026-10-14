@@ -155,9 +155,17 @@ function fmtDateStr(s) {
   return `${p[2]}/${p[1]}/${p[0]}`;
 }
 
+// Zona waktu toko: WIB (Asia/Jakarta) - tidak bergantung setelan zona/jam perangkat
 function todayISO() {
-  const d = new Date();
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+}
+
+function nowWIB() {
+  return new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
+}
+
+function todayWIBDisplay() {
+  return new Date().toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta' });
 }
 
 function isOverdue(r) {
@@ -536,7 +544,7 @@ function openModal(data = null) {
   } else {
     document.getElementById('modal-title').textContent = 'Tanda Terima Baru';
     document.getElementById('f-receipt_number').value = '(auto)';
-    document.getElementById('f-date').value = new Date().toLocaleDateString('id-ID');
+    document.getElementById('f-date').value = todayWIBDisplay();
     document.getElementById('f-payment_status').value = '';
     document.getElementById('f-due_date').value = '';
     document.getElementById('f-settle_method').value = '';
@@ -732,7 +740,7 @@ function ownerNotifMsg(events, info) {
     `Pelanggan: ${d.customer_name || '-'}\n` +
     `Device: ${fmtDevice(d) || '-'}\n\n` +
     events.join('\n') + '\n\n' +
-    `Waktu: ${new Date().toLocaleString('id-ID')}`;
+    `Waktu: ${nowWIB()}`;
 }
 
 // Konfirmasi notifikasi memakai panel di dalam halaman (tidak diblokir browser).
