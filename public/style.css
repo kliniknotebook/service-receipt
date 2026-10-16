@@ -883,7 +883,7 @@ table.a4-sign-table {
 
 @page halfa4 {
   size: 165mm 215mm; /* ukuran kertas setengah A4 toko */
-  margin: 6mm;
+  margin: 6mm 6mm 6mm 11mm; /* kiri +5mm: isi digeser ke kanan ~0,5cm */
 }
 
 @page a4page {
