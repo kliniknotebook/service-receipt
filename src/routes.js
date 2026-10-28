@@ -12,6 +12,29 @@ const adminTokens = new Map();    // token -> timestamp
 const DAYS_PER_PAYMENT = 30;      // 1 bulan per pembayaran
 
 // ---------- helpers ----------
+// Status pembayaran: '' (Kosong), 'cash', 'hutang', 'lunas'. Default baru = '' (belum dipastikan).
+function paymentStatusTo(v) {
+  return v === 'hutang' || v === 'cash' || v === 'lunas' || v === '' ? v : 'cash';
+}
+
+function dueDateTo(ps, dd) {
+  return ps === 'hutang' ? String(dd || '') : '';
+}
+
+function todayISODate() {
+  const d = new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+
+// Nominal diskon dari data nota ('percent' = % dari estimasi, 'rp' = rupiah)
+function discountAmount(est, type, val) {
+  const e = Number(est) || 0;
+  const v = Number(val) || 0;
+  if (type === 'percent') return Math.round(e * v / 100);
+  if (type === 'rp') return Math.round(v);
+  return 0;
+}
+
 function bearer(req) {
   const auth = req.headers.authorization || '';
   return auth.replace(/^Bearer\s+/i, '');
@@ -19,6 +42,43 @@ function bearer(req) {
 
 function createToken() {
   return crypto.randomBytes(24).toString('hex');
+}
+
+// ---------- Tanda tangan PDF publik (untuk link "Kirim via WA (PDF)") ----------
+const PDF_SECRET = process.env.PDF_SECRET || 'tts-web-pdf-v1';
+
+function pdfSign(tid, id) {
+  return crypto.createHash('sha256').update(`${tid}:${id}:${PDF_SECRET}`).digest('hex');
+}
+
+function pdfVerify(tid, id, sig) {
+  const expect = pdfSign(tid, id);
+  const a = Buffer.from(String(sig || ''));
+  const b = Buffer.from(expect);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+function sendPdf(res, row, settingsObj, logo, opts = {}) {
+  const { buildA4, buildHalfA4 } = require('./pdf');
+  const doc = opts.half ? buildHalfA4(settingsObj, row, logo) : buildA4(settingsObj, row, logo);
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition',
+    `${opts.disposition || 'attachment'}; filename="${row.receipt_number}${opts.half ? '-half' : ''}.pdf"`);
+  doc.pipe(res);
+  doc.end();
+}
+
+function tenantSettingsObjFromDb(tid) {
+  const rows = T.query(tid, 'SELECT * FROM settings');
+  const obj = {};
+  rows.forEach(r => { obj[r.key] = r.value; });
+  return obj;
+}
+
+function tenantLogoPathFor(tid, settingsObj) {
+  if (!settingsObj.shop_logo) return null;
+  const full = path.join(T.uploadsDir(tid), path.basename(settingsObj.shop_logo));
+  return fs.existsSync(full) ? full : null;
 }
 
 function cleanPayments(p) {
@@ -133,6 +193,25 @@ function generateReceiptNumber(req) {
   let seq = 1;
   if (last) {
     const parts = last.receipt_number.split('-');
+    seq = parseInt(parts[2]) + 1;
+  }
+  return `${prefix}-${String(seq).padStart(4, '0')}`;
+}
+
+// Nomor nota kasir: KSR-YYYYMMDD-0001 (beda dengan EXE: KS-YYYYMMDD-0001)
+function generateSaleNumber(req) {
+  const date = new Date();
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  const prefix = `KSR-${y}${m}${d}`;
+  const last = one(req,
+    "SELECT sale_number FROM sales WHERE sale_number LIKE ? ORDER BY id DESC LIMIT 1",
+    [`${prefix}%`]
+  );
+  let seq = 1;
+  if (last) {
+    const parts = last.sale_number.split('-');
     seq = parseInt(parts[2]) + 1;
   }
   return `${prefix}-${String(seq).padStart(4, '0')}`;
@@ -281,7 +360,10 @@ router.get('/public/track', async (req, res) => {
 
   const row = T.queryOne(tenant.id,
     `SELECT receipt_number, customer_name, customer_phone, device_type,
-       device_brand, device_model, complaint, status, created_at, updated_at
+       device_brand, device_model, complaint, estimated_cost, down_payment,
+       discount_type, discount_value, discount_note,
+       status, payment_status, due_date, settle_date, settle_method,
+       delivery_note, created_at, updated_at
      FROM receipts WHERE receipt_number = ? AND customer_phone = ?`,
     [no.trim(), hp.trim()]
   );
@@ -298,20 +380,196 @@ router.use('/receipts', requireTenant);
 router.use('/stats', requireTenant);
 router.use('/settings', requireTenant);
 router.use('/report', requireTenant);
+router.use('/sync', requireTenant);
+router.use('/products', requireTenant);
+router.use('/customers', requireTenant);
+router.use('/sales', requireTenant);
+router.use('/sales-report', requireTenant);
+
+// ============================================================
+//  SINKRONISASI 2 ARAH (EXE <=> Web), berbasis client_id
+// ============================================================
+// Daftar metadata nota (id, client_id, deleted, updated_at) sejak `since`
+router.get('/sync/pull', (req, res) => {
+  const since = req.query.since || '';
+  let rows;
+  if (since) {
+    rows = all(req,
+      `SELECT id, client_id, deleted, updated_at FROM receipts
+       WHERE updated_at > ? OR deleted = 1
+       ORDER BY updated_at ASC`, [since]);
+  } else {
+    rows = all(req, 'SELECT id, client_id, deleted, updated_at FROM receipts');
+  }
+  // FIX sync: nota yang dibuat langsung lewat web tidak punya client_id sehingga
+  // tidak pernah turun ke EXE. Pastikan setiap baris punya client_id (backfill
+  // otomatis sekali), lalu kembalikan semuanya.
+  for (const r of rows) {
+    if (!r.client_id) {
+      const cid = crypto.randomUUID();
+      runq(req, 'UPDATE receipts SET client_id = ? WHERE id = ?', [cid, r.id]);
+      r.client_id = cid;
+    }
+  }
+  res.json(rows.filter(r => r.client_id));
+});
+
+// EXE mengirim perubahan (create/update/delete) berbasis client_id
+router.post('/sync/push', (req, res) => {
+  const { since, changes } = req.body || {};
+  if (!Array.isArray(changes)) return res.status(400).json({ error: 'changes harus array' });
+
+  for (const c of changes) {
+    if (!c || !c.client_id) continue;
+    if (c.action === 'delete') {
+      runq(req, "UPDATE receipts SET deleted = 1, updated_at = datetime('now','localtime') WHERE client_id = ?", [c.client_id]);
+    } else {
+      const d = c.data || {};
+      const ps = paymentStatusTo(d.payment_status);
+      const dd = dueDateTo(ps, d.due_date);
+      const exist = one(req, 'SELECT id FROM receipts WHERE client_id = ?', [c.client_id]);
+      if (exist) {
+        const takeDate = d.status === 'diambil'
+          ? (d.tanggal_ambil || (exist.tanggal_ambil || todayISODate()))
+          : (d.tanggal_ambil || '');
+        runq(req, `UPDATE receipts SET
+            customer_name = ?, customer_phone = ?, customer_address = ?,
+            device_type = ?, device_brand = ?, device_model = ?, device_serial = ?,
+            complaint = ?, notes = ?, delivery_note = ?, estimated_cost = ?, down_payment = ?,
+            discount_type = ?, discount_value = ?, discount_note = ?,
+            status = ?, payment_status = ?, due_date = ?, settle_date = ?, settle_method = ?,
+            garansi_bulan = ?, garansi_unit = ?, tanggal_ambil = ?, actual_cost = ?,
+            accessories = ?,
+            deleted = 0, updated_at = datetime('now','localtime')
+          WHERE client_id = ?`, [
+          d.customer_name || '', d.customer_phone || '', d.customer_address || '',
+          d.device_type || '', d.device_brand || '', d.device_model || '', d.device_serial || '',
+          d.complaint || '', d.notes || '', d.delivery_note || '',
+          d.estimated_cost || 0, d.down_payment || 0,
+          d.discount_type || '', d.discount_value || 0, d.discount_note || '',
+          d.status || 'diterima',
+          ps, dd, d.settle_date || '', d.settle_method || '',
+          d.garansi_bulan || 0, d.garansi_unit || 'bulan', takeDate, d.actual_cost || 0,
+          typeof d.accessories === 'string' ? d.accessories : (d.accessories ? JSON.stringify(d.accessories) : ''),
+          c.client_id
+        ]);
+      } else {
+        const rnum = d.receipt_number || `SRI-${Date.now()}-${Math.floor(Math.random()*10000)}`;
+        // Karena receipt_number UNIQUE (termasuk baris soft-deleted), cek dulu;
+        // jika sudah ada, re-activate baris tsb dengan client_id baru alih-alih INSERT.
+        const existing = one(req,
+          `SELECT id FROM receipts WHERE receipt_number = ?`, [rnum]);
+        if (existing) {
+          const takeDate = d.status === 'diambil'
+            ? (d.tanggal_ambil || todayISODate())
+            : (d.tanggal_ambil || '');
+          runq(req, `UPDATE receipts SET
+              client_id = ?, deleted = 0,
+              customer_name = ?, customer_phone = ?, customer_address = ?,
+              device_type = ?, device_brand = ?, device_model = ?, device_serial = ?,
+              complaint = ?, notes = ?, delivery_note = ?,
+              estimated_cost = ?, down_payment = ?,
+              discount_type = ?, discount_value = ?, discount_note = ?,
+              status = ?,
+              payment_status = ?, due_date = ?, settle_date = ?, settle_method = ?,
+              garansi_bulan = ?, garansi_unit = ?, tanggal_ambil = ?, actual_cost = ?, accessories = ?,
+              updated_at = datetime('now','localtime')
+            WHERE id = ?`, [
+            c.client_id,
+            d.customer_name || '', d.customer_phone || '', d.customer_address || '',
+            d.device_type || '', d.device_brand || '', d.device_model || '', d.device_serial || '',
+            d.complaint || '', d.notes || '', d.delivery_note || '',
+            d.estimated_cost || 0, d.down_payment || 0,
+            d.discount_type || '', d.discount_value || 0, d.discount_note || '',
+            d.status || 'diterima',
+            ps, dd, d.settle_date || '', d.settle_method || '',
+            d.garansi_bulan || 0, d.garansi_unit || 'bulan', takeDate, d.actual_cost || 0,
+            typeof d.accessories === 'string' ? d.accessories : (d.accessories ? JSON.stringify(d.accessories) : ''),
+            existing.id
+          ]);
+        } else {
+          const takeDate = d.status === 'diambil'
+            ? (d.tanggal_ambil || todayISODate())
+            : (d.tanggal_ambil || '');
+          runq(req, `INSERT INTO receipts
+          (receipt_number, client_id, customer_name, customer_phone, customer_address,
+           device_type, device_brand, device_model, device_serial, complaint, notes,
+           delivery_note, estimated_cost, down_payment,
+           discount_type, discount_value, discount_note,
+status, payment_status, due_date,
+           settle_date, settle_method, garansi_bulan, garansi_unit, tanggal_ambil, actual_cost)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+          rnum, c.client_id,
+          d.customer_name || '', d.customer_phone || '', d.customer_address || '',
+          d.device_type || '', d.device_brand || '', d.device_model || '', d.device_serial || '',
+          d.complaint || '', d.notes || '', d.delivery_note || '',
+          d.estimated_cost || 0, d.down_payment || 0,
+          d.discount_type || '', d.discount_value || 0, d.discount_note || '',
+          d.status || 'diterima',
+          ps, dd, d.settle_date || '', d.settle_method || '',
+          d.garansi_bulan || 0, d.garansi_unit || 'bulan', takeDate, d.actual_cost || 0,
+          typeof d.accessories === 'string' ? d.accessories : (d.accessories ? JSON.stringify(d.accessories) : '')
+        ]);
+        }
+      }
+    }
+  }
+
+  let rows = [];
+  if (since) {
+    rows = all(req,
+      `SELECT id, client_id, deleted, updated_at FROM receipts
+       WHERE updated_at > ? OR deleted = 1
+       ORDER BY updated_at ASC`, [since]);
+  } else {
+    rows = all(req, 'SELECT id, client_id, deleted, updated_at FROM receipts');
+  }
+  res.json(rows.filter(r => r.client_id));
+});
+
+// Tarik detail nota per client_id
+router.get('/sync/fetch/:clientId', (req, res) => {
+  const row = one(req, 'SELECT * FROM receipts WHERE client_id = ?', [req.params.clientId]);
+  if (!row) return res.status(404).json({ error: 'Tidak ditemukan' });
+  res.json({ ...row });
+});
+
+// Tarik detail banyak nota berdasarkan daftar client_id
+router.post('/sync/fetch', (req, res) => {
+  const ids = (req.body && req.body.ids) || [];
+  if (!Array.isArray(ids)) return res.status(400).json({ error: 'ids harus array' });
+  const out = [];
+  for (const cid of ids) {
+    if (!cid) continue;
+    const row = one(req, 'SELECT * FROM receipts WHERE client_id = ?', [cid]);
+    if (row && !row.deleted) out.push(row);
+  }
+  res.json(out);
+});
+
+// Semua nota lengkap (untuk sinkron penuh pertama)
+router.get('/sync/all', (req, res) => {
+  const rows = all(req, 'SELECT * FROM receipts WHERE client_id IS NOT NULL AND deleted = 0');
+  res.json(rows);
+});
 
 // List all receipts
 router.get('/receipts', (req, res) => {
-  const { search, status } = req.query;
-  let sql = 'SELECT * FROM receipts WHERE 1=1';
+  const { search, status, payment } = req.query;
+  let sql = 'SELECT * FROM receipts WHERE deleted = 0';
   const params = [];
   if (search) {
-    sql += ' AND (receipt_number LIKE ? OR customer_name LIKE ? OR customer_phone LIKE ?)';
+    sql += ' AND (receipt_number LIKE ? OR customer_name LIKE ? OR customer_phone LIKE ? OR device_type LIKE ? OR device_brand LIKE ? OR device_model LIKE ? OR device_serial LIKE ?)';
     const s = `%${search}%`;
-    params.push(s, s, s);
+    params.push(s, s, s, s, s, s, s);
   }
   if (status && status !== 'semua') {
     sql += ' AND status = ?';
     params.push(status);
+  }
+  if (payment && payment !== 'semua') {
+    sql += ' AND payment_status = ?';
+    params.push(payment);
   }
   sql += ' ORDER BY id DESC';
   res.json(all(req, sql, params));
@@ -319,7 +577,7 @@ router.get('/receipts', (req, res) => {
 
 // Get single receipt
 router.get('/receipts/:id', (req, res) => {
-  const row = one(req, 'SELECT * FROM receipts WHERE id = ?', [parseInt(req.params.id)]);
+  const row = one(req, 'SELECT * FROM receipts WHERE id = ? AND deleted = 0', [parseInt(req.params.id)]);
   if (!row) return res.status(404).json({ error: 'Tidak ditemukan' });
   res.json(row);
 });
@@ -327,22 +585,42 @@ router.get('/receipts/:id', (req, res) => {
 // Create receipt
 router.post('/receipts', (req, res) => {
   const receipt_number = generateReceiptNumber(req);
+  const client_id = crypto.randomUUID();
   const {
     customer_name, customer_phone, customer_address,
     device_type, device_brand, device_model, device_serial,
-    complaint, notes, estimated_cost, down_payment, status
+    complaint, notes, delivery_note, estimated_cost, down_payment, status,
+    discount_type, discount_value, discount_note,
+    payment_status, due_date, settle_date, settle_method,
+    garansi_bulan, garansi_unit, tanggal_ambil, actual_cost, accessories
   } = req.body;
 
+  const payStatus = paymentStatusTo(payment_status);
+  if (payStatus === 'hutang' && !due_date) {
+    return res.status(400).json({ error: 'Tanggal jatuh tempo wajib diisi untuk status Hutang' });
+  }
+  if (payStatus === 'lunas' && (!settle_method || !settle_date)) {
+    return res.status(400).json({ error: 'Status Lunas wajib mengisi Dibayar Via dan Tanggal Lunas' });
+  }
+  const dd = dueDateTo(payStatus, due_date);
+  const finalTakeDate = status === 'diambil' ? (tanggal_ambil || todayISODate()) : (tanggal_ambil || '');
+  const accStr = typeof accessories === 'string' ? accessories : (accessories ? JSON.stringify(accessories) : '');
+
   runq(req, `
-    INSERT INTO receipts (receipt_number, customer_name, customer_phone, customer_address,
-      device_type, device_brand, device_model, device_serial, complaint, notes,
-      estimated_cost, down_payment, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO receipts (receipt_number, client_id, customer_name, customer_phone, customer_address,
+      device_type, device_brand, device_model, device_serial, complaint, notes, delivery_note,
+      discount_type, discount_value, discount_note,
+      estimated_cost, down_payment, status, payment_status, due_date, settle_date, settle_method,
+      garansi_bulan, garansi_unit, tanggal_ambil, actual_cost, accessories)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
-    receipt_number, customer_name, customer_phone || '', customer_address || '',
+    receipt_number, client_id, customer_name, customer_phone || '', customer_address || '',
     device_type || '', device_brand || '', device_model || '', device_serial || '',
-    complaint || '', notes || '',
-    estimated_cost || 0, down_payment || 0, status || 'diterima'
+    complaint || '', notes || '', delivery_note || '',
+    discount_type || '', discount_value || 0, discount_note || '',
+    estimated_cost || 0, down_payment || 0, status || 'diterima', payStatus, dd,
+    settle_date || '', settle_method || '',
+    garansi_bulan || 0, garansi_unit || 'bulan', finalTakeDate, actual_cost || 0, accStr
   ]);
 
   const row = one(req, 'SELECT * FROM receipts WHERE receipt_number = ?', [receipt_number]);
@@ -354,21 +632,46 @@ router.put('/receipts/:id', (req, res) => {
   const {
     customer_name, customer_phone, customer_address,
     device_type, device_brand, device_model, device_serial,
-    complaint, notes, estimated_cost, down_payment, status
+    complaint, notes, delivery_note, estimated_cost, down_payment, status,
+    discount_type, discount_value, discount_note,
+    payment_status, due_date, settle_date, settle_method,
+    garansi_bulan, garansi_unit, tanggal_ambil, actual_cost, accessories
   } = req.body;
 
+  const payStatus = paymentStatusTo(payment_status);
+  if (payStatus === 'hutang' && !due_date) {
+    return res.status(400).json({ error: 'Tanggal jatuh tempo wajib diisi untuk status Hutang' });
+  }
+  if (payStatus === 'lunas' && (!settle_method || !settle_date)) {
+    return res.status(400).json({ error: 'Status Lunas wajib mengisi Dibayar Via dan Tanggal Lunas' });
+  }
+  const dd = dueDateTo(payStatus, due_date);
+
+  const prev = one(req, 'SELECT * FROM receipts WHERE id = ?', [parseInt(req.params.id)]);
+  const finalTakeDate = status === 'diambil'
+    ? (tanggal_ambil || (prev && prev.tanggal_ambil) || todayISODate())
+    : (tanggal_ambil || '');
+
+  const accStr = typeof accessories === 'string' ? accessories : (accessories ? JSON.stringify(accessories) : '');
   runq(req, `
     UPDATE receipts SET
       customer_name = ?, customer_phone = ?, customer_address = ?,
       device_type = ?, device_brand = ?, device_model = ?, device_serial = ?,
-      complaint = ?, notes = ?, estimated_cost = ?, down_payment = ?,
-      status = ?, updated_at = datetime('now','localtime')
+      complaint = ?, notes = ?, delivery_note = ?, estimated_cost = ?, down_payment = ?,
+      discount_type = ?, discount_value = ?, discount_note = ?,
+      status = ?, payment_status = ?, due_date = ?, settle_date = ?, settle_method = ?,
+      garansi_bulan = ?, garansi_unit = ?, tanggal_ambil = ?, actual_cost = ?, accessories = ?,
+      updated_at = datetime('now','localtime')
     WHERE id = ?
   `, [
-    customer_name, customer_phone || '', customer_address || '',
+    customer_name || '', customer_phone || '', customer_address || '',
     device_type || '', device_brand || '', device_model || '', device_serial || '',
-    complaint || '', notes || '',
-    estimated_cost || 0, down_payment || 0, status || 'diterima',
+    complaint || '', notes || '', delivery_note || '',
+    estimated_cost || 0, down_payment || 0,
+    discount_type || '', discount_value || 0, discount_note || '',
+    status || 'diterima', payStatus, dd,
+    settle_date || '', settle_method || '',
+    garansi_bulan || 0, garansi_unit || 'bulan', finalTakeDate, actual_cost || 0, accStr,
     parseInt(req.params.id)
   ]);
 
@@ -377,11 +680,11 @@ router.put('/receipts/:id', (req, res) => {
   res.json(row);
 });
 
-// Delete receipt
+// Delete receipt (soft-delete agar tersinkron dua arah dengan EXE)
 router.delete('/receipts/:id', (req, res) => {
   const before = one(req, 'SELECT id FROM receipts WHERE id = ?', [parseInt(req.params.id)]);
-  runq(req, 'DELETE FROM receipts WHERE id = ?', [parseInt(req.params.id)]);
   if (!before) return res.status(404).json({ error: 'Tidak ditemukan' });
+  runq(req, "UPDATE receipts SET deleted = 1, updated_at = datetime('now','localtime') WHERE id = ?", [parseInt(req.params.id)]);
   res.json({ success: true });
 });
 
@@ -433,11 +736,38 @@ router.get('/stats', (req, res) => {
   const diterima = one(req, "SELECT COUNT(*) as count FROM receipts WHERE status='diterima'").count;
   const diproses = one(req, "SELECT COUNT(*) as count FROM receipts WHERE status='diproses'").count;
   const selesai = one(req, "SELECT COUNT(*) as count FROM receipts WHERE status='selesai'").count;
+  const diantar = one(req, "SELECT COUNT(*) as count FROM receipts WHERE status='diantar'").count;
   const diambil = one(req, "SELECT COUNT(*) as count FROM receipts WHERE status='diambil'").count;
+  const batal = one(req, "SELECT COUNT(*) as count FROM receipts WHERE status='batal'").count;
+  const hutang = one(req, "SELECT COUNT(*) as count FROM receipts WHERE payment_status='hutang' AND status != 'batal'").count;
+  const dueCount = one(req, "SELECT COUNT(*) as count FROM receipts WHERE payment_status='hutang' AND status != 'batal' AND due_date != '' AND due_date <= date('now','localtime')").count;
   const todayRevenue = one(req,
-    "SELECT COALESCE(SUM(down_payment),0) as total FROM receipts WHERE date(created_at) = date('now','localtime')"
+    "SELECT COALESCE(SUM(down_payment),0) as total FROM receipts WHERE status != 'batal' AND date(created_at) = date('now','localtime')"
   ).total;
-  res.json({ total, diterima, diproses, selesai, diambil, todayRevenue });
+  // Modul kasir
+  const totalProducts = one(req, 'SELECT COUNT(*) as count FROM products WHERE deleted = 0').count;
+  const totalSales = one(req, 'SELECT COUNT(*) as count FROM sales WHERE deleted = 0').count;
+  const kasirOmzet = one(req, `SELECT COALESCE(SUM(total),0) as total FROM sales WHERE deleted = 0`).total;
+  const kasirToday = one(req, `SELECT COUNT(*) as count,
+      COALESCE(SUM(total),0) as total, COALESCE(SUM(paid),0) as paid
+    FROM sales WHERE deleted = 0 AND date = date('now','localtime')`);
+  const hppMap = productHppMap(req);
+  const kasirLaba = all(req, 'SELECT total, items FROM sales WHERE deleted = 0')
+    .reduce((s, r) => s + saleLaba(r.total, r.items, hppMap), 0);
+  const kasirTodayLaba = all(req, `SELECT total, items FROM sales
+    WHERE deleted = 0 AND date = date('now','localtime')`)
+    .reduce((s, r) => s + saleLaba(r.total, r.items, hppMap), 0);
+  res.json({
+    total, diterima, diproses, selesai, diantar, diambil, batal, hutang, dueCount, todayRevenue,
+    totalProducts, totalSales, kasirOmzet,
+    kasirLaba,
+    kasirMargin: kasirOmzet > 0 ? Math.round(kasirLaba / kasirOmzet * 1000) / 10 : 0,
+    kasirTodayCount: kasirToday.count,
+    kasirTodayOmzet: kasirToday.total,
+    kasirTodayPaid: kasirToday.paid,
+    kasirTodayLaba,
+    kasirTodayMargin: kasirToday.total > 0 ? Math.round(kasirTodayLaba / kasirToday.total * 1000) / 10 : 0
+  });
 });
 
 // Report: revenue per period
@@ -450,13 +780,20 @@ router.get('/report', (req, res) => {
   if (to) { where += ' AND date(created_at) <= ?'; params.push(to); }
   if (status && status !== 'semua') { where += ' AND status = ?'; params.push(status); }
 
+  const revWhere = where + " AND status != 'batal'";
+
   const summary = one(req, `
     SELECT
-      COUNT(*) as count,
+      (SELECT COUNT(*) FROM receipts ${where}) as count,
       COALESCE(SUM(down_payment),0) as total_dp,
       COALESCE(SUM(estimated_cost),0) as total_estimate,
-      COALESCE(SUM(estimated_cost),0) - COALESCE(SUM(down_payment),0) as total_remaining
-    FROM receipts ${where}
+      COALESCE(SUM(CASE WHEN discount_type='percent' THEN estimated_cost*discount_value/100.0
+                        WHEN discount_type='rp' THEN discount_value ELSE 0 END),0) as total_discount,
+      COALESCE(SUM(estimated_cost),0)
+        - COALESCE(SUM(CASE WHEN discount_type='percent' THEN estimated_cost*discount_value/100.0
+                            WHEN discount_type='rp' THEN discount_value ELSE 0 END),0)
+        - COALESCE(SUM(down_payment),0) as total_remaining
+    FROM receipts ${revWhere}
   `, params);
 
   let detail;
@@ -465,8 +802,10 @@ router.get('/report', (req, res) => {
       SELECT date(created_at) as tanggal,
         COUNT(*) as count,
         COALESCE(SUM(down_payment),0) as total_dp,
-        COALESCE(SUM(estimated_cost),0) as total_estimate
-      FROM receipts ${where}
+        COALESCE(SUM(estimated_cost),0) as total_estimate,
+        COALESCE(SUM(CASE WHEN discount_type='percent' THEN estimated_cost*discount_value/100.0
+                          WHEN discount_type='rp' THEN discount_value ELSE 0 END),0) as total_discount
+      FROM receipts ${revWhere}
       GROUP BY date(created_at)
       ORDER BY tanggal DESC
     `, params);
@@ -482,12 +821,7 @@ router.get('/receipts/:id/export', (req, res) => {
   const r = one(req, 'SELECT * FROM receipts WHERE id = ?', [parseInt(req.params.id)]);
   if (!r) return res.status(404).json({ error: 'Tidak ditemukan' });
   const settings = tenantSettingsObject(req);
-  const { buildA4 } = require('./pdf');
-  const doc = buildA4(settings, r, tenantLogoPath(req));
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename="${r.receipt_number}.pdf"`);
-  doc.pipe(res);
-  doc.end();
+  sendPdf(res, r, settings, tenantLogoPath(req));
 });
 
 // Export PDF (Setengah A4)
@@ -495,12 +829,654 @@ router.get('/receipts/:id/export/half', (req, res) => {
   const r = one(req, 'SELECT * FROM receipts WHERE id = ?', [parseInt(req.params.id)]);
   if (!r) return res.status(404).json({ error: 'Tidak ditemukan' });
   const settings = tenantSettingsObject(req);
-  const { buildHalfA4 } = require('./pdf');
-  const doc = buildHalfA4(settings, r, tenantLogoPath(req));
+  sendPdf(res, r, settings, tenantLogoPath(req), { half: true });
+});
+
+// Dapatkan link PDF publik (dipakai tombol "Kirim via WA (PDF)")
+router.get('/receipts/:id/wa-pdf', (req, res) => {
+  const r = one(req, 'SELECT * FROM receipts WHERE id = ?', [parseInt(req.params.id)]);
+  if (!r) return res.status(404).json({ error: 'Tidak ditemukan' });
+  const size = req.query.size === 'half' ? 'half' : 'a4';
+  const k = pdfSign(req.tenantId, r.id);
+  res.json({ url: `/api/pdf/${req.tenantId}/${r.id}?k=${k}&size=${size}` });
+});
+
+// Link PDF publik (tanpa login) untuk dibuka pelanggan dari WhatsApp
+router.get('/pdf/:tid/:id', async (req, res) => {
+  const tid = req.params.tid;
+  const id = parseInt(req.params.id);
+  if (!pdfVerify(tid, id, req.query.k)) {
+    return res.status(403).json({ error: 'Link tidak valid' });
+  }
+  try {
+    const tenant = M.queryOne('SELECT * FROM tenants WHERE id = ?', [tid]);
+    if (!tenant) return res.status(404).json({ error: 'Tidak ditemukan' });
+    await ensureTenantDb(tenant);
+    const row = T.queryOne(tid, 'SELECT * FROM receipts WHERE id = ?', [id]);
+    if (!row) return res.status(404).json({ error: 'Tidak ditemukan' });
+    const so = tenantSettingsObjFromDb(tid);
+    sendPdf(res, row, so, tenantLogoPathFor(tid, so),
+      { half: req.query.size === 'half', disposition: 'inline' });
+  } catch (e) {
+    res.status(500).json({ error: 'Gagal membuat PDF' });
+  }
+});
+
+// Link PDF STRUK PENJUALAN publik (tanpa login) untuk dibuka pelanggan dari WA
+router.get('/pdf-sale/:tid/:id', async (req, res) => {
+  const tid = req.params.tid;
+  const id = parseInt(req.params.id);
+  if (!pdfVerify(tid, id, req.query.k)) {
+    return res.status(403).json({ error: 'Link tidak valid' });
+  }
+  try {
+    const tenant = M.queryOne('SELECT * FROM tenants WHERE id = ?', [tid]);
+    if (!tenant) return res.status(404).json({ error: 'Tidak ditemukan' });
+    await ensureTenantDb(tenant);
+    const row = T.queryOne(tid, 'SELECT * FROM sales WHERE id = ? AND deleted = 0', [id]);
+    if (!row) return res.status(404).json({ error: 'Tidak ditemukan' });
+    const so = tenantSettingsObjFromDb(tid);
+    const { buildSaleStruk, buildSaleStrukHalf } = require('./pdf');
+    const doc = req.query.size === 'half'
+      ? buildSaleStrukHalf(so, row, tenantLogoPathFor(tid, so))
+      : buildSaleStruk(so, row, tenantLogoPathFor(tid, so));
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition',
+      `inline; filename="${row.sale_number}${req.query.size === 'half' ? '-half' : ''}.pdf"`);
+    doc.pipe(res);
+    doc.end();
+  } catch (e) {
+    res.status(500).json({ error: 'Gagal membuat PDF' });
+  }
+});
+
+// ============================================================
+//  MODUL KASIR: PRODUK
+// ============================================================
+router.get('/products', (req, res) => {
+  const { search } = req.query;
+  let sql = 'SELECT * FROM products WHERE deleted = 0';
+  const params = [];
+  if (search) {
+    sql += ' AND (name LIKE ? OR category LIKE ?)';
+    const s = `%${search}%`;
+    params.push(s, s);
+  }
+  sql += ' ORDER BY name COLLATE NOCASE';
+  res.json(all(req, sql, params));
+});
+
+router.get('/products/:id', (req, res) => {
+  const row = one(req, 'SELECT * FROM products WHERE id = ? AND deleted = 0', [parseInt(req.params.id)]);
+  if (!row) return res.status(404).json({ error: 'Tidak ditemukan' });
+  res.json(row);
+});
+
+router.post('/products', (req, res) => {
+  const { name, category, price, hpp, stock, supplier } = req.body || {};
+  if (!name || !String(name).trim()) return res.status(400).json({ error: 'Nama produk wajib diisi' });
+  runq(req, `
+    INSERT INTO products (client_id, name, category, price, hpp, stock, supplier)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `, [
+    crypto.randomUUID(), String(name).trim(), String(category || '').trim(),
+    Number(price) || 0, Number(hpp) || 0, Number(stock) || 0, String(supplier || '').trim()
+  ]);
+  const row = one(req, 'SELECT * FROM products WHERE id = last_insert_rowid()');
+  res.status(201).json(row);
+});
+
+router.put('/products/:id', (req, res) => {
+  const { name, category, price, hpp, stock, supplier } = req.body || {};
+  if (!name || !String(name).trim()) return res.status(400).json({ error: 'Nama produk wajib diisi' });
+  const before = one(req, 'SELECT id FROM products WHERE id = ?', [parseInt(req.params.id)]);
+  if (!before) return res.status(404).json({ error: 'Tidak ditemukan' });
+  runq(req, `
+    UPDATE products SET name = ?, category = ?, price = ?, hpp = ?, stock = ?, supplier = ?,
+      updated_at = datetime('now','localtime'), deleted = 0
+    WHERE id = ?
+  `, [
+    String(name).trim(), String(category || '').trim(),
+    Number(price) || 0, Number(hpp) || 0, Number(stock) || 0,
+    String(supplier || '').trim(), parseInt(req.params.id)
+  ]);
+  const row = one(req, 'SELECT * FROM products WHERE id = ?', [parseInt(req.params.id)]);
+  res.json(row);
+});
+
+// Ubah stok (restock / koreksi) tanpa mengubah data lain
+router.patch('/products/:id/stock', (req, res) => {
+  const { stock } = req.body || {};
+  const before = one(req, 'SELECT id FROM products WHERE id = ?', [parseInt(req.params.id)]);
+  if (!before) return res.status(404).json({ error: 'Tidak ditemukan' });
+  runq(req, `UPDATE products SET stock = ?, updated_at = datetime('now','localtime') WHERE id = ?`,
+    [Math.max(0, Number(stock) || 0), parseInt(req.params.id)]);
+  const row = one(req, 'SELECT * FROM products WHERE id = ?', [parseInt(req.params.id)]);
+  res.json(row);
+});
+
+router.delete('/products/:id', (req, res) => {
+  const before = one(req, 'SELECT id FROM products WHERE id = ?', [parseInt(req.params.id)]);
+  if (!before) return res.status(404).json({ error: 'Tidak ditemukan' });
+  runq(req, "UPDATE products SET deleted = 1, updated_at = datetime('now','localtime') WHERE id = ?",
+    [parseInt(req.params.id)]);
+  res.json({ success: true });
+});
+
+// ============================================================
+//  DATA PELANGGAN (master)
+// ============================================================
+router.get('/customers', (req, res) => {
+  res.json(all(req, "SELECT * FROM customers WHERE deleted = 0 ORDER BY name COLLATE NOCASE"));
+});
+
+router.get('/customers/:id', (req, res) => {
+  const row = one(req, 'SELECT * FROM customers WHERE id = ? AND deleted = 0', [parseInt(req.params.id)]);
+  if (!row) return res.status(404).json({ error: 'Tidak ditemukan' });
+  res.json(row);
+});
+
+router.post('/customers', (req, res) => {
+  const { name, phone, address, notes } = req.body || {};
+  if (!name || !String(name).trim()) return res.status(400).json({ error: 'Nama pelanggan wajib diisi' });
+  runq(req, `
+    INSERT INTO customers (client_id, name, phone, address, notes)
+    VALUES (?, ?, ?, ?, ?)
+  `, [
+    crypto.randomUUID(), String(name).trim(), String(phone || '').trim(),
+    String(address || '').trim(), String(notes || '').trim()
+  ]);
+  const row = one(req, 'SELECT * FROM customers WHERE id = last_insert_rowid()');
+  res.status(201).json(row);
+});
+
+router.put('/customers/:id', (req, res) => {
+  const { name, phone, address, notes } = req.body || {};
+  if (!name || !String(name).trim()) return res.status(400).json({ error: 'Nama pelanggan wajib diisi' });
+  const before = one(req, 'SELECT id FROM customers WHERE id = ?', [parseInt(req.params.id)]);
+  if (!before) return res.status(404).json({ error: 'Tidak ditemukan' });
+  runq(req, `
+    UPDATE customers SET name = ?, phone = ?, address = ?, notes = ?,
+      updated_at = datetime('now','localtime'), deleted = 0
+    WHERE id = ?
+  `, [
+    String(name).trim(), String(phone || '').trim(), String(address || '').trim(),
+    String(notes || '').trim(), parseInt(req.params.id)
+  ]);
+  const row = one(req, 'SELECT * FROM customers WHERE id = ?', [parseInt(req.params.id)]);
+  res.json(row);
+});
+
+router.delete('/customers/:id', (req, res) => {
+  const before = one(req, 'SELECT id FROM customers WHERE id = ?', [parseInt(req.params.id)]);
+  if (!before) return res.status(404).json({ error: 'Tidak ditemukan' });
+  runq(req, "UPDATE customers SET deleted = 1, updated_at = datetime('now','localtime') WHERE id = ?",
+    [parseInt(req.params.id)]);
+  res.json({ success: true });
+});
+
+// ============================================================
+//  MODUL KASIR: PENJUALAN
+// ============================================================
+function saleAmounts(items, discountType, discountValue) {
+  const lines = Array.isArray(items) ? items : [];
+  let subtotal = 0;
+  for (const it of lines) {
+    subtotal += (Number(it.qty) || 0) * (Number(it.price) || 0);
+  }
+  const disc = discountAmount(subtotal, discountType, discountValue);
+  const total = Math.max(0, subtotal - disc);
+  return { subtotal: Math.round(subtotal), disc: Math.round(disc), total: Math.round(total) };
+}
+
+// Kurangi stok produk saat penjualan dibuat
+function reduceStockForSale(req, items) {
+  for (const it of Array.isArray(items) ? items : []) {
+    if (!it || !it.client_id) continue;
+    const qty = Number(it.qty) || 0;
+    if (qty <= 0) continue;
+    runq(req, `UPDATE products SET stock = MAX(stock - ?, 0), updated_at = datetime('now','localtime')
+      WHERE client_id = ? AND deleted = 0`, [qty, it.client_id]);
+  }
+}
+
+// Isi hpp (harga beli) pada tiap item penjualan bila belum disertakan
+function snapshotHpp(req, items) {
+  const out = [];
+  for (const it of Array.isArray(items) ? items : []) {
+    if (!it) continue;
+    if (it.hpp !== undefined) { out.push({ ...it, hpp: Number(it.hpp) || 0 }); continue; }
+    let hpp = 0;
+    if (it.client_id) {
+      const p = one(req, 'SELECT hpp FROM products WHERE client_id = ?', [it.client_id]);
+      hpp = p ? Number(p.hpp) || 0 : 0;
+    }
+    out.push({ ...it, hpp });
+  }
+  return out;
+}
+
+// Peta client_id -> hpp produk (dipakai menghitung laba penjualan lama
+// yang item-nya belum punya snapshot hpp).
+function productHppMap(req) {
+  const m = {};
+  for (const p of all(req, 'SELECT client_id, hpp FROM products')) m[p.client_id] = Number(p.hpp) || 0;
+  return m;
+}
+
+// Laba kotor satu penjualan = total - total (qty * hpp) item.
+// HPP item dari snapshot items.hpp; bila tidak ada, fallback ke hpp produk.
+function saleLaba(total, itemsText, hppMap) {
+  let lines = [];
+  try { lines = JSON.parse(itemsText || '[]'); } catch (e) { lines = []; }
+  if (!Array.isArray(lines)) lines = [];
+  let cost = 0;
+  for (const it of lines) {
+    if (!it || typeof it !== 'object') continue;
+    const qty = Number(it.qty) || 0;
+    if (qty <= 0) continue;
+    const hpp = it.hpp !== undefined ? (Number(it.hpp) || 0) : (it.client_id ? (hppMap[it.client_id] || 0) : 0);
+    cost += qty * hpp;
+  }
+  return Math.round((Number(total) || 0) - cost);
+}
+
+router.get('/sales', (req, res) => {
+  const { search, from, to } = req.query;
+  let sql = 'SELECT * FROM sales WHERE deleted = 0';
+  const params = [];
+  if (search) {
+    sql += ' AND (sale_number LIKE ? OR customer_name LIKE ? OR customer_phone LIKE ?)';
+    const s = `%${search}%`;
+    params.push(s, s, s);
+  }
+  if (from) { sql += ' AND date >= ?'; params.push(from); }
+  if (to) { sql += ' AND date <= ?'; params.push(to); }
+  sql += ' ORDER BY id DESC';
+  const hppMap = productHppMap(req);
+  res.json(all(req, sql, params).map(r => {
+    const laba = saleLaba(r.total, r.items, hppMap);
+    return {
+      ...r,
+      laba,
+      margin: (Number(r.total) || 0) > 0
+        ? Math.round(laba * 100 / (Number(r.total) || 0) * 10) / 10
+        : 0
+    };
+  }));
+});
+
+router.get('/sales/:id', (req, res) => {
+  const row = one(req, 'SELECT * FROM sales WHERE id = ? AND deleted = 0', [parseInt(req.params.id)]);
+  if (!row) return res.status(404).json({ error: 'Tidak ditemukan' });
+  res.json(row);
+});
+
+router.post('/sales', (req, res) => {
+  const {
+    customer_name, customer_phone, items, date,
+    discount_type, discount_value, discount_note,
+    paid, settle_method, payment_status, due_date
+  } = req.body || {};
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'Keranjang masih kosong' });
+  }
+  const enrItems = snapshotHpp(req, items);
+  const { subtotal, disc, total } = saleAmounts(enrItems, discount_type, discount_value);
+  const isLunas = payment_status === 'hutang' ? false : true;
+  const paidAmt = isLunas ? Math.max(0, Number(paid) || 0) : 0;
+  const change = isLunas && paidAmt >= total ? paidAmt - total : 0;
+  const saleNumber = generateSaleNumber(req);
+  const saleDate = String(date || '').trim() || new Date().toISOString().slice(0, 10);
+  const now = new Date().toISOString().slice(0, 10);
+
+  runq(req, `
+    INSERT INTO sales
+    (sale_number, customer_name, customer_phone, items, date,
+     subtotal, discount_type, discount_value, discount_note,
+     total, paid, change_amount, payment_status, settle_method,
+     due_date, settle_date, client_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, [
+    saleNumber, String(customer_name || ''), String(customer_phone || ''),
+    JSON.stringify(enrItems), saleDate,
+    subtotal, discount_type || '', discount_value || 0, discount_note || '',
+    total, paidAmt, change,
+    isLunas ? 'lunas' : 'hutang', isLunas ? (settle_method || 'cash') : '',
+    isLunas ? '' : String(due_date || ''), isLunas ? now : '',
+    crypto.randomUUID()
+  ]);
+  reduceStockForSale(req, enrItems);
+
+  const row = one(req, 'SELECT * FROM sales WHERE sale_number = ?', [saleNumber]);
+  res.status(201).json(row);
+});
+
+router.put('/sales/:id', (req, res) => {
+  const {
+    customer_name, customer_phone, items, date,
+    discount_type, discount_value, discount_note,
+    paid, settle_method, payment_status, due_date
+  } = req.body || {};
+  const before = one(req, 'SELECT id FROM sales WHERE id = ?', [parseInt(req.params.id)]);
+  if (!before) return res.status(404).json({ error: 'Tidak ditemukan' });
+  const lines = snapshotHpp(req, Array.isArray(items) ? items : []);
+  const { subtotal, disc, total } = saleAmounts(lines, discount_type, discount_value);
+  const isLunas = payment_status === 'hutang' ? false : true;
+  const paidAmt = isLunas ? Math.max(0, Number(paid) || 0) : 0;
+  const change = isLunas && paidAmt >= total ? paidAmt - total : 0;
+  const saleDate = String(date || '').trim();
+  const s = one(req, 'SELECT * FROM sales WHERE id = ?', [parseInt(req.params.id)]);
+  const now = new Date().toISOString().slice(0, 10);
+  const settle_date = !s || s.payment_status === 'hutang' ? (isLunas ? now : '') : (s.settle_date || now);
+
+  runq(req, `
+    UPDATE sales SET
+      customer_name = ?, customer_phone = ?, items = ?, date = ?,
+      subtotal = ?, discount_type = ?, discount_value = ?, discount_note = ?,
+      total = ?, paid = ?, change_amount = ?, payment_status = ?, settle_method = ?,
+      due_date = ?, settle_date = ?, updated_at = datetime('now','localtime'), deleted = 0
+    WHERE id = ?
+  `, [
+    String(customer_name || ''), String(customer_phone || ''),
+    JSON.stringify(lines), saleDate,
+    subtotal, discount_type || '', discount_value || 0, discount_note || '',
+    total, paidAmt, change,
+    isLunas ? 'lunas' : 'hutang', isLunas ? (settle_method || 'cash') : '',
+    isLunas ? '' : String(due_date || ''), settle_date,
+    parseInt(req.params.id)
+  ]);
+  const row = one(req, 'SELECT * FROM sales WHERE id = ?', [parseInt(req.params.id)]);
+  res.json(row);
+});
+
+router.delete('/sales/:id', (req, res) => {
+  const before = one(req, 'SELECT id FROM sales WHERE id = ?', [parseInt(req.params.id)]);
+  if (!before) return res.status(404).json({ error: 'Tidak ditemukan' });
+  runq(req, "UPDATE sales SET deleted = 1, updated_at = datetime('now','localtime') WHERE id = ?",
+    [parseInt(req.params.id)]);
+  res.json({ success: true });
+});
+
+// Rekap kasir: ringkasan + rincian
+router.get('/sales-report', (req, res) => {
+  const { from, to, groupBy } = req.query;
+  let where = 'WHERE deleted = 0';
+  const params = [];
+  if (from) { where += ' AND date >= ?'; params.push(from); }
+  if (to) { where += ' AND date <= ?'; params.push(to); }
+
+  const oneRow = sql => {
+    const rows = all(req, sql, params);
+    return rows[0] || {};
+  };
+  const summary = oneRow(`
+    SELECT
+      COUNT(*) as count,
+      COALESCE(SUM(subtotal),0) as total_subtotal,
+      COALESCE(SUM(CASE WHEN discount_type='percent' THEN subtotal*discount_value/100.0
+                        WHEN discount_type='rp' THEN discount_value ELSE 0 END),0) as total_discount,
+      COALESCE(SUM(total),0) as total_penjualan,
+      COALESCE(SUM(paid),0) as total_paid,
+      COALESCE(SUM(CASE WHEN payment_status='hutang' THEN total ELSE 0 END),0) as total_hutang
+    FROM sales ${where}
+  `);
+  if (groupBy === 'date') {
+    summary.detail = all(req, `
+      SELECT date as tanggal,
+        COUNT(*) as count,
+        COALESCE(SUM(subtotal),0) as total_subtotal,
+        COALESCE(SUM(total),0) as total_penjualan,
+        COALESCE(SUM(paid),0) as total_paid
+      FROM sales ${where}
+      GROUP BY date ORDER BY tanggal DESC
+    `, params);
+  } else {
+    summary.detail = all(req, `SELECT * FROM sales ${where} ORDER BY id DESC`, params);
+  }
+  res.json({ summary });
+});
+
+// Struk penjualan: PDF (A4) & setengah A4
+router.get('/sales/:id/export', (req, res) => {
+  const r = one(req, 'SELECT * FROM sales WHERE id = ?', [parseInt(req.params.id)]);
+  if (!r) return res.status(404).json({ error: 'Tidak ditemukan' });
+  const settings = tenantSettingsObject(req);
+  const { buildSaleStruk } = require('./pdf');
+  const doc = buildSaleStruk(settings, r, tenantLogoPath(req));
   res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename="${r.receipt_number}-half.pdf"`);
+  res.setHeader('Content-Disposition', `attachment; filename="${r.sale_number}.pdf"`);
   doc.pipe(res);
   doc.end();
+});
+
+router.get('/sales/:id/export/half', (req, res) => {
+  const r = one(req, 'SELECT * FROM sales WHERE id = ?', [parseInt(req.params.id)]);
+  if (!r) return res.status(404).json({ error: 'Tidak ditemukan' });
+  const settings = tenantSettingsObject(req);
+  const { buildSaleStrukHalf } = require('./pdf');
+  const doc = buildSaleStrukHalf(settings, r, tenantLogoPath(req));
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="${r.sale_number}-half.pdf"`);
+  doc.pipe(res);
+  doc.end();
+});
+
+// Link PDF STRUK untuk dikirim ke pelanggan via WhatsApp (kasir)
+router.get('/sales/:id/wa-pdf', (req, res) => {
+  const r = one(req, 'SELECT * FROM sales WHERE id = ?', [parseInt(req.params.id)]);
+  if (!r) return res.status(404).json({ error: 'Tidak ditemukan' });
+  const size = req.query.size === 'half' ? 'half' : 'a4';
+  const k = pdfSign(req.tenantId, r.id);
+  res.json({ url: `/api/pdf-sale/${req.tenantId}/${r.id}?k=${k}&size=${size}` });
+});
+
+// ============================================================
+//  SINKRON MODUL KASIR (PRODUK & PENJUALAN), berbasis client_id
+// ============================================================
+router.get('/sync/products/pull', (req, res) => {
+  const since = req.query.since || '';
+  const where = since ? 'WHERE (updated_at > ? OR deleted = 1) ORDER BY updated_at ASC' : 'ORDER BY id ASC';
+  const params = since ? [since] : [];
+  res.json(all(req, `SELECT id, client_id, deleted, updated_at FROM products ${where}`, params));
+});
+
+router.post('/sync/products/push', (req, res) => {
+  const { changes } = req.body || {};
+  if (!Array.isArray(changes)) return res.status(400).json({ error: 'changes harus array' });
+  for (const c of changes) {
+    if (!c || !c.client_id) continue;
+    if (c.action === 'delete') {
+      runq(req, "UPDATE products SET deleted = 1, updated_at = datetime('now','localtime') WHERE client_id = ?", [c.client_id]);
+      continue;
+    }
+    const d = c.data || {};
+    if (!d.name) continue;
+    const exist = one(req, 'SELECT id FROM products WHERE client_id = ?', [c.client_id]);
+    if (exist) {
+      runq(req, `UPDATE products SET name = ?, category = ?, price = ?, hpp = ?, stock = ?, supplier = ?, deleted = 0,
+          updated_at = datetime('now','localtime') WHERE client_id = ?`,
+        [d.name, d.category || '', d.price || 0, d.hpp || 0, d.stock || 0, d.supplier || '', c.client_id]);
+    } else {
+      runq(req, `INSERT INTO products (client_id, name, category, price, hpp, stock, supplier)
+          VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [c.client_id, d.name, d.category || '', d.price || 0, d.hpp || 0, d.stock || 0, d.supplier || '']);
+    }
+  }
+  const since = (req.body && req.body.since) || '';
+  const where = since ? 'WHERE (updated_at > ? OR deleted = 1) ORDER BY updated_at ASC' : 'ORDER BY id ASC';
+  const params = since ? [since] : [];
+  res.json(all(req, `SELECT id, client_id, deleted, updated_at FROM products ${where}`, params));
+});
+
+router.get('/sync/products/fetch/:clientId', (req, res) => {
+  const row = one(req, 'SELECT * FROM products WHERE client_id = ?', [req.params.clientId]);
+  if (!row) return res.status(404).json({ error: 'Tidak ditemukan' });
+  res.json({ ...row });
+});
+
+router.post('/sync/products/fetch', (req, res) => {
+  const ids = (req.body && req.body.ids) || [];
+  const out = [];
+  for (const cid of Array.isArray(ids) ? ids : []) {
+    if (!cid) continue;
+    const row = one(req, 'SELECT * FROM products WHERE client_id = ?', [cid]);
+    if (row && !row.deleted) out.push(row);
+  }
+  res.json(out);
+});
+
+router.get('/sync/products/all', (req, res) => {
+  res.json(all(req, 'SELECT * FROM products WHERE client_id IS NOT NULL AND deleted = 0'));
+});
+
+router.get('/sync/customers/pull', (req, res) => {
+  const since = req.query.since || '';
+  const where = since ? 'WHERE (updated_at > ? OR deleted = 1) ORDER BY updated_at ASC' : 'ORDER BY id ASC';
+  const params = since ? [since] : [];
+  res.json(all(req, `SELECT id, client_id, deleted, updated_at FROM customers ${where}`, params));
+});
+
+router.post('/sync/customers/push', (req, res) => {
+  const { changes } = req.body || {};
+  if (!Array.isArray(changes)) return res.status(400).json({ error: 'changes harus array' });
+  for (const c of changes) {
+    if (!c || !c.client_id) continue;
+    if (c.action === 'delete') {
+      runq(req, "UPDATE customers SET deleted = 1, updated_at = datetime('now','localtime') WHERE client_id = ?", [c.client_id]);
+      continue;
+    }
+    const d = c.data || {};
+    if (!d.name) continue;
+    const exist = one(req, 'SELECT id FROM customers WHERE client_id = ?', [c.client_id]);
+    if (exist) {
+      runq(req, `UPDATE customers SET name = ?, phone = ?, address = ?, notes = ?, deleted = 0,
+          updated_at = datetime('now','localtime') WHERE client_id = ?`,
+        [d.name, d.phone || '', d.address || '', d.notes || '', c.client_id]);
+    } else {
+      runq(req, `INSERT INTO customers (client_id, name, phone, address, notes)
+          VALUES (?, ?, ?, ?, ?)`,
+        [c.client_id, d.name, d.phone || '', d.address || '', d.notes || '']);
+    }
+  }
+  const since = (req.body && req.body.since) || '';
+  const where = since ? 'WHERE (updated_at > ? OR deleted = 1) ORDER BY updated_at ASC' : 'ORDER BY id ASC';
+  const params = since ? [since] : [];
+  res.json(all(req, `SELECT id, client_id, deleted, updated_at FROM customers ${where}`, params));
+});
+
+router.get('/sync/customers/fetch/:clientId', (req, res) => {
+  const row = one(req, 'SELECT * FROM customers WHERE client_id = ?', [req.params.clientId]);
+  if (!row) return res.status(404).json({ error: 'Tidak ditemukan' });
+  res.json({ ...row });
+});
+
+router.post('/sync/customers/fetch', (req, res) => {
+  const ids = (req.body && req.body.ids) || [];
+  const out = [];
+  for (const cid of Array.isArray(ids) ? ids : []) {
+    if (!cid) continue;
+    const row = one(req, 'SELECT * FROM customers WHERE client_id = ?', [cid]);
+    if (row && !row.deleted) out.push(row);
+  }
+  res.json(out);
+});
+
+router.get('/sync/customers/all', (req, res) => {
+  res.json(all(req, 'SELECT * FROM customers WHERE client_id IS NOT NULL AND deleted = 0'));
+});
+
+router.get('/sync/sales/pull', (req, res) => {
+  const since = req.query.since || '';
+  const where = since ? 'WHERE (updated_at > ? OR deleted = 1) ORDER BY updated_at ASC' : 'ORDER BY id ASC';
+  const params = since ? [since] : [];
+  res.json(all(req, `SELECT id, client_id, deleted, updated_at FROM sales ${where}`, params));
+});
+
+router.post('/sync/sales/push', (req, res) => {
+  const { changes } = req.body || {};
+  if (!Array.isArray(changes)) return res.status(400).json({ error: 'changes harus array' });
+  for (const c of changes) {
+    if (!c || !c.client_id) continue;
+    if (c.action === 'delete') {
+      runq(req, "UPDATE sales SET deleted = 1, updated_at = datetime('now','localtime') WHERE client_id = ?", [c.client_id]);
+      continue;
+    }
+    const d = c.data || {};
+    if (!d.sale_number) continue;
+    const exist = one(req, 'SELECT id FROM sales WHERE client_id = ?', [c.client_id]);
+    const isLunas = d.payment_status === 'hutang' ? false : true;
+    if (exist) {
+      runq(req, `UPDATE sales SET
+          customer_name = ?, customer_phone = ?, items = ?, subtotal = ?,
+          discount_type = ?, discount_value = ?, discount_note = ?,
+          total = ?, paid = ?, change_amount = ?, payment_status = ?, settle_method = ?,
+          due_date = ?, settle_date = ?, date = ?, deleted = 0,
+          updated_at = datetime('now','localtime')
+        WHERE client_id = ?`,
+        [d.customer_name || '', d.customer_phone || '', JSON.stringify(d.items || []), d.subtotal || 0,
+         d.discount_type || '', d.discount_value || 0, d.discount_note || '',
+         d.total || 0, d.paid || 0, d.change_amount || 0,
+         isLunas ? 'lunas' : 'hutang', isLunas ? (d.settle_method || 'cash') : '',
+         isLunas ? '' : (d.due_date || ''), d.settle_date || '', d.date || '', c.client_id]);
+    } else {
+      const existingByNum = one(req, 'SELECT id FROM sales WHERE sale_number = ?', [d.sale_number]);
+      if (existingByNum) {
+        runq(req, `UPDATE sales SET
+            client_id = ?, deleted = 0,
+            customer_name = ?, customer_phone = ?, items = ?, subtotal = ?,
+            discount_type = ?, discount_value = ?, discount_note = ?,
+            total = ?, paid = ?, change_amount = ?, payment_status = ?, settle_method = ?,
+            due_date = ?, settle_date = ?, date = ?,
+            updated_at = datetime('now','localtime')
+          WHERE id = ?`,
+          [c.client_id, d.customer_name || '', d.customer_phone || '', JSON.stringify(d.items || []), d.subtotal || 0,
+           d.discount_type || '', d.discount_value || 0, d.discount_note || '',
+           d.total || 0, d.paid || 0, d.change_amount || 0,
+           isLunas ? 'lunas' : 'hutang', isLunas ? (d.settle_method || 'cash') : '',
+           isLunas ? '' : (d.due_date || ''), d.settle_date || '', d.date || '',
+           existingByNum.id]);
+      } else {
+        runq(req, `INSERT INTO sales
+            (sale_number, client_id, customer_name, customer_phone, items, date,
+             subtotal, discount_type, discount_value, discount_note,
+             total, paid, change_amount, payment_status, settle_method,
+             due_date, settle_date)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [d.sale_number, c.client_id, d.customer_name || '', d.customer_phone || '',
+           JSON.stringify(d.items || []), d.date || '',
+           d.subtotal || 0, d.discount_type || '', d.discount_value || 0, d.discount_note || '',
+           d.total || 0, d.paid || 0, d.change_amount || 0,
+           isLunas ? 'lunas' : 'hutang', isLunas ? (d.settle_method || 'cash') : '',
+           isLunas ? '' : (d.due_date || ''), d.settle_date || '']);
+      }
+    }
+  }
+  const since = (req.body && req.body.since) || '';
+  const where = since ? 'WHERE (updated_at > ? OR deleted = 1) ORDER BY updated_at ASC' : 'ORDER BY id ASC';
+  const params = since ? [since] : [];
+  res.json(all(req, `SELECT id, client_id, deleted, updated_at FROM sales ${where}`, params));
+});
+
+router.get('/sync/sales/fetch/:clientId', (req, res) => {
+  const row = one(req, 'SELECT * FROM sales WHERE client_id = ?', [req.params.clientId]);
+  if (!row) return res.status(404).json({ error: 'Tidak ditemukan' });
+  res.json({ ...row });
+});
+
+router.post('/sync/sales/fetch', (req, res) => {
+  const ids = (req.body && req.body.ids) || [];
+  const out = [];
+  for (const cid of Array.isArray(ids) ? ids : []) {
+    if (!cid) continue;
+    const row = one(req, 'SELECT * FROM sales WHERE client_id = ?', [cid]);
+    if (row && !row.deleted) out.push(row);
+  }
+  res.json(out);
+});
+
+router.get('/sync/sales/all', (req, res) => {
+  res.json(all(req, 'SELECT * FROM sales WHERE client_id IS NOT NULL AND deleted = 0'));
 });
 
 // ============================================================
@@ -605,6 +1581,15 @@ router.post('/admin/tenants/:id/unsuspend', requireAdmin, (req, res) => {
   const tenant = M.queryOne('SELECT * FROM tenants WHERE id = ?', [req.params.id]);
   if (!tenant) return res.status(404).json({ error: 'Toko tidak ditemukan' });
   M.run("UPDATE tenants SET status = 'active' WHERE id = ?", [req.params.id]);
+  res.json({ success: true });
+});
+
+router.delete('/admin/tenants/:id', requireAdmin, (req, res) => {
+  const tenant = M.queryOne('SELECT * FROM tenants WHERE id = ?', [req.params.id]);
+  if (!tenant) return res.status(404).json({ error: 'Toko tidak ditemukan' });
+  M.run("DELETE FROM tenants WHERE id = ?", [req.params.id]);
+  M.run("DELETE FROM payments WHERE tenant_id = ?", [req.params.id]);
+  T.remove(req.params.id);
   res.json({ success: true });
 });
 
