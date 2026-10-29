@@ -1,11 +1,11 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tanda Terima Service</title>
-  <link rel="stylesheet" href="style.css?v=26">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔧</text></svg>">
+  <link rel="stylesheet" href="style.css?v=35">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>??</text></svg>">
 </head>
 <body>
   <nav class="navbar">
@@ -13,6 +13,7 @@
     <div class="nav-links">
       <a href="#" class="nav-link active" data-page="dashboard">Dashboard</a>
       <a href="#" class="nav-link" data-page="receipts">Tanda Terima</a>
+      <a href="#" class="nav-link" data-page="kasir">Kasir</a>
       <a href="#" class="nav-link" data-page="report">Laporan</a>
       <a href="#" class="nav-link" data-page="settings">Pengaturan</a>
       <a href="#" class="nav-link logged-in" id="btn-logout" style="display:none">Keluar</a>
@@ -24,7 +25,7 @@
   <!-- Login Overlay -->
   <div class="login-overlay" id="login-overlay">
     <div class="login-card">
-      <div class="login-logo">🔧</div>
+      <div class="login-logo">??</div>
       <h2>Service Receipt</h2>
       <p class="login-sub">Masuk untuk mengelola tanda terima</p>
       <form id="login-form">
@@ -46,7 +47,7 @@
   <!-- Subscription Overlay -->
   <div class="login-overlay" id="sub-overlay" style="display:none">
     <div class="login-card" style="max-height:92vh;overflow:auto">
-      <div class="login-logo">🚧</div>
+      <div class="login-logo">??</div>
       <h2 id="sub-title">Masa Langganan Habis</h2>
       <p id="sub-desc" class="login-sub"></p>
       <div id="sub-bank" class="sub-bank"></div>
@@ -133,11 +134,277 @@
               <th>DP</th>
               <th>Status</th>
               <th>Pembayaran</th>
+              <th>Garansi</th>
               <th>Aksi</th>
             </tr>
           </thead>
           <tbody></tbody>
         </table>
+      </div>
+    </section>
+
+    <!-- Kasir -->
+    <section id="page-kasir" class="page">
+      <div class="section-header">
+        <h2>Kasir / Toko</h2>
+      </div>
+      <div class="kasir-tabs receipt-tabs" id="kasir-tabs">
+        <button class="tab-btn active" data-tab="kasir">?? Jual</button>
+        <button class="tab-btn" data-tab="produk">?? Produk</button>
+        <button class="tab-btn" data-tab="pelanggan">?? Pelanggan</button>
+        <button class="tab-btn" data-tab="riwayat">?? Riwayat Jualan</button>
+      </div>
+
+      <!-- Tab Kasir (Jual) -->
+      <div id="ktab-kasir">
+        <div class="kasir-layout">
+          <div class="form-card kasir-products">
+            <div class="form-group">
+              <label>Cari Produk</label>
+              <input type="text" id="kasir-search" placeholder="Nama / kategori produk...">
+            </div>
+            <div class="table-wrapper" style="max-height:420px;overflow:auto">
+              <table id="kasir-product-table">
+                <thead>
+                  <tr>
+                    <th>Nama</th>
+                    <th>Harga</th>
+                    <th>Stok</th>
+                    <th>Qty</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="form-card cart-box">
+            <h4>Keranjang</h4>
+            <div class="table-wrapper" style="max-height:200px;overflow:auto">
+              <table id="cart-table">
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th>Qty</th>
+                    <th>Subtotal</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div class="cart-summary">
+              <div class="receipt-row"><span>Subtotal</span><span id="cart-subtotal">Rp 0</span></div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Diskon</label>
+                  <select id="cart-discount_type">
+                    <option value="">Tanpa</option>
+                    <option value="rp">Rp</option>
+                    <option value="percent">%</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Nilai</label>
+                  <input type="text" id="cart-discount_value" value="0" inputmode="numeric">
+                </div>
+              </div>
+              <div id="cart-discount-note-wrap" class="form-group" style="display:none">
+                <label>Keterangan Diskon</label>
+                <input type="text" id="cart-discount_note" placeholder="cth: promo">
+              </div>
+              <div class="receipt-row receipt-bold"><span>Total</span><span id="cart-total">Rp 0</span></div>
+            </div>
+            <div class="form-group">
+              <label>Cara Bayar</label>
+              <select id="cart-method">
+                <option value="cash">Cash</option>
+                <option value="transfer">Transfer Bank</option>
+                <option value="qris">QRIS</option>
+                <option value="hutang">Hutang</option>
+              </select>
+            </div>
+            <div id="cart-paid-group">
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Uang Diterima</label>
+                  <input type="text" id="cart-paid" value="0" inputmode="numeric">
+                </div>
+                <div class="form-group">
+                  <label>Kembalian</label>
+                  <input type="text" id="cart-change" readonly>
+                </div>
+              </div>
+            </div>
+            <div id="cart-due-group" class="form-group" style="display:none">
+              <label>Jatuh Tempo (jika Hutang)</label>
+              <input type="date" id="cart-due">
+            </div>
+            <div class="form-group">
+              <label>Pilih Pelanggan (opsional)</label>
+              <select id="cart-cust-pick">
+                <option value="">-- Pilih / ketik manual --</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Nama Pelanggan</label>
+                <input type="text" id="cart-customer" placeholder="opsional">
+              </div>
+              <div class="form-group">
+                <label>No. HP</label>
+                <input type="text" id="cart-phone" placeholder="opsional">
+              </div>
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-primary btn-block" id="btn-save-sale">Simpan Penjualan</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Produk -->
+      <div id="ktab-produk" style="display:none">
+        <div class="form-card produkt-form" id="produk-form-card">
+          <h4 id="produk-form-title">Tambah Produk</h4>
+          <input type="hidden" id="produk-id">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Nama Produk *</label>
+              <input type="text" id="produk-name" required>
+            </div>
+            <div class="form-group">
+              <label>Kategori</label>
+              <input type="text" id="produk-category" placeholder="cth: Aksesoris / Sparepart">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Toko Beli / Pemasok</label>
+              <input type="text" id="produk-supplier" placeholder="cth: Toko Sinar Jaya / UD Berkah">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Harga Jual (Rp)</label>
+              <input type="text" id="produk-price" value="0" inputmode="numeric">
+            </div>
+            <div class="form-group">
+              <label>Harga Beli / HPP (Rp)</label>
+              <input type="text" id="produk-hpp" value="0" inputmode="numeric">
+            </div>
+            <div class="form-group">
+              <label>Stok</label>
+              <input type="text" id="produk-stock" value="0" inputmode="numeric">
+            </div>
+          </div>
+          <div class="form-actions" style="justify-content:flex-start">
+            <button type="button" class="btn btn-primary" id="produk-save">Simpan</button>
+            <button type="button" class="btn btn-secondary" id="produk-reset" style="display:none">Batal Edit</button>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table id="produk-table">
+            <thead>
+              <tr>
+                <th>Nama</th>
+                <th>Kategori</th>
+                <th>Pemasok / Toko Beli</th>
+                <th>Harga Jual</th>
+                <th>HPP</th>
+                <th>Stok</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tab Pelanggan -->
+      <div id="ktab-pelanggan" style="display:none">
+        <div class="form-card produkt-form" id="pelanggan-form-card">
+          <h4 id="pelanggan-form-title">Tambah Pelanggan</h4>
+          <input type="hidden" id="pelanggan-id">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Nama Pelanggan *</label>
+              <input type="text" id="pelanggan-name" required>
+            </div>
+            <div class="form-group">
+              <label>Telepon</label>
+              <input type="text" id="pelanggan-phone" placeholder="cth: 0812xxxx">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Alamat</label>
+            <input type="text" id="pelanggan-address" placeholder="Alamat lengkap">
+          </div>
+          <div class="form-group">
+            <label>Catatan</label>
+            <input type="text" id="pelanggan-notes" placeholder="cth: Langganan tetap / garansi">
+          </div>
+          <div class="form-actions" style="justify-content:flex-start">
+            <button type="button" class="btn btn-primary" id="pelanggan-save">Simpan</button>
+            <button type="button" class="btn btn-secondary" id="pelanggan-reset" style="display:none">Batal Edit</button>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table id="pelanggan-table">
+            <thead>
+              <tr>
+                <th>Nama</th>
+                <th>Telepon</th>
+                <th>Alamat</th>
+                <th>Catatan</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tab Riwayat Jualan -->
+      <div id="ktab-riwayat" style="display:none">
+        <div class="stats-grid" id="sale-summary"></div>
+        <div class="report-filters form-card">
+          <div class="form-row three">
+            <div class="form-group">
+              <label>Dari Tanggal</label>
+              <input type="date" id="sale-from">
+            </div>
+            <div class="form-group">
+              <label>Sampai Tanggal</label>
+              <input type="date" id="sale-to">
+            </div>
+            <div class="form-group">
+              <label>Cari</label>
+              <input type="text" id="sale-search" placeholder="No. nota / pelanggan / telp">
+            </div>
+          </div>
+          <div class="form-actions" style="justify-content:flex-start">
+            <button class="btn btn-primary" id="sale-filter-btn">Tampilkan</button>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table id="sales-table">
+            <thead>
+              <tr>
+                <th>No. Nota</th>
+                <th>Tanggal</th>
+                <th>Pelanggan</th>
+                <th>Item</th>
+                <th>Total</th>
+                <th>Untung</th>
+                <th>Dibayar</th>
+                <th>Bayar Via</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
       </div>
     </section>
 
@@ -270,6 +537,12 @@
           <label>Alamat</label>
           <input type="text" id="f-customer_address">
         </div>
+        <div class="form-group">
+          <label>Pilih Pelanggan Tersimpan (opsional)</label>
+          <select id="f-cust-pick">
+            <option value="">-- Pilih / ketik manual --</option>
+          </select>
+        </div>
 
         <h4 class="form-section-title">Data Device</h4>
         <div class="form-row">
@@ -313,6 +586,68 @@
           <label>Keterangan / Yang Diganti &amp; Diperbaiki</label>
           <textarea id="f-notes" rows="2"></textarea>
         </div>
+
+        <h4 class="form-section-title">Kelengkapan Barang</h4>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Adaptor</label>
+            <input type="text" id="f-acc-adaptor" placeholder="Ada/Tidak / Keterangan">
+          </div>
+          <div class="form-group">
+            <label>Baterai</label>
+            <input type="text" id="f-acc-batt" placeholder="Ada/Tidak / Keterangan">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>SSD</label>
+            <select id="f-acc-ssd">
+              <option value="">-</option>
+              <option value="Ada">Ada</option>
+              <option value="Tidak">Tidak</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Kapasitas SSD</label>
+            <input type="text" id="f-acc-ssd-cap" placeholder="cth: 512GB / 1TB">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>HDD</label>
+            <select id="f-acc-hdd">
+              <option value="">-</option>
+              <option value="Ada">Ada</option>
+              <option value="Tidak">Tidak</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Kapasitas HDD</label>
+            <input type="text" id="f-acc-hdd-cap" placeholder="cth: 1TB / 500GB">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>RAM</label>
+            <select id="f-acc-ram">
+              <option value="">-</option>
+              <option value="Ada">Ada</option>
+              <option value="Tidak">Tidak</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Kapasitas RAM</label>
+            <input type="text" id="f-acc-ram-cap" placeholder="cth: 8GB / 16GB">
+          </div>
+          <div class="form-group">
+            <label>Jumlah Keping RAM</label>
+            <input type="text" id="f-acc-ram-qty" placeholder="cth: 1 / 2">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Lain-lain</label>
+          <input type="text" id="f-acc-lain" placeholder="Casing, Charger, Tas, dll">
+        </div>
         <div class="form-group" id="f-delivery-group" style="display:none">
           <label>Keterangan Diantar (jika Diantar)</label>
           <textarea id="f-delivery_note" rows="2" placeholder="cth: dikirim via kurir ke alamat pelanggan"></textarea>
@@ -321,6 +656,10 @@
           <div class="form-group">
             <label>Estimasi Biaya (Rp)</label>
             <input type="text" id="f-estimated_cost" inputmode="numeric" placeholder="cth: 150.000" value="0">
+          </div>
+          <div class="form-group">
+            <label>Biaya Aktual/Riil (Rp)</label>
+            <input type="text" id="f-actual_cost" inputmode="numeric" placeholder="cth: 145.000" value="0">
           </div>
           <div class="form-group">
             <label>Uang Muka / DP (Rp)</label>
@@ -365,6 +704,7 @@
             <select id="f-payment_status">
               <option value="">Kosong</option>
               <option value="cash">Cash</option>
+              <option value="transfer">Transfer Bank</option>
               <option value="hutang">Hutang</option>
               <option value="lunas">Lunas</option>
             </select>
@@ -381,11 +721,30 @@
               <option value="">-- Pilih --</option>
               <option value="cash">Cash</option>
               <option value="transfer">Transfer Bank</option>
+              <option value="qris">QRIS</option>
             </select>
           </div>
           <div class="form-group">
             <label>Tanggal Lunas</label>
             <input type="date" id="f-settle_date">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Lama Garansi</label>
+            <div class="garansi-row">
+              <input type="number" id="f-garansi_bulan" min="0" value="0" placeholder="0 = tanpa garansi" style="width:80px">
+              <select id="f-garansi_unit" style="flex:1;min-width:130px">
+                <option value="bulan">Bulan</option>
+                <option value="minggu">Minggu</option>
+                <option value="hari">Hari</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Tanggal Diambil</label>
+            <input type="date" id="f-tanggal_ambil">
+            <small class="form-hint">Otomatis diisi saat status Diambil, bisa diubah manual. Garansi dihitung dari tanggal ini.</small>
           </div>
         </div>
 
@@ -404,7 +763,7 @@
   <!-- Notifikasi WhatsApp (panel konfirmasi di dalam halaman) -->
   <div class="notif-overlay" id="notif-overlay" style="display:none">
     <div class="notif-box">
-      <h3>🔔 Kirim notifikasi status?</h3>
+      <h3>?? Kirim notifikasi status?</h3>
       <div class="notif-msg" id="notif-msg"></div>
       <div class="notif-actions" id="notif-actions">
         <button type="button" class="btn btn-primary" id="notif-send">Ya, Kirim WhatsApp</button>
@@ -425,13 +784,13 @@
           <option value="a4">A4 (Deskjet / Laserjet)</option>
         </select>
       </div>
-      <button class="btn btn-primary" onclick="window.print()">🖨️ Cetak</button>
-      <button class="btn btn-success" onclick="waPdfReceipt()">📄 Kirim WA (PDF)</button>
+      <button class="btn btn-primary" onclick="window.print()">??? Cetak</button>
+      <button class="btn btn-success" onclick="waPdfReceipt()">?? Kirim WA (PDF)</button>
       <button class="btn btn-secondary" onclick="closePrint()">Tutup</button>
     </div>
     <div id="print-content"></div>
   </div>
 
-  <script src="app.js?v=22"></script>
+  <script src="app.js?v=42"></script>
 </body>
 </html>
